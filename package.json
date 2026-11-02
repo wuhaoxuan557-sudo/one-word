@@ -1,0 +1,29 @@
+{
+  "name": "one-word",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:wordlist": "python -m unittest discover -s scripts -p test_*.py"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "6.2.0",
+    "typescript": "~5.9.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  },
+  "packageManager": "pnpm@10.28.2",
+  "engines": { "node": ">=22.12.0" }
+}

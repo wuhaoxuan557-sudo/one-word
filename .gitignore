@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+.vitest/
+__pycache__/
+*.pyc
+wordlists_src/ecdict.csv
+wordlists_src/*.download
+.qa/
