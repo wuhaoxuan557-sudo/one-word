@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateOptions, meaningsOverlap, nextQuestion, primaryPos } from './choices';
+import { generateOptions, meaningsOverlap, prepareChoicePool, primaryPos } from './choices';
 import { word } from './fixtures.test-helper';
 
 describe('primaryPos', () => {
@@ -25,11 +25,26 @@ describe('meaningsOverlap', () => {
     expect(meaningsOverlap('n. 苹果', 'n. 桌子')).toBe(false);
     expect(meaningsOverlap('', 'n. 桌子')).toBe(true);
   });
+  it('compares displayed senses, ignoring later lines and senses beyond three', () => {
+    expect(meaningsOverlap('n. 苹果, 水果, 果实, 桌子\nv. 摆放', 'n. 桌子\nv. 摆放')).toBe(false);
+    expect(meaningsOverlap('n. 州, 状态, 情形, 国家', 'v. 情形, 说明')).toBe(true);
+  });
+  it('rejects identical shortened options even when hidden lines differ', () => {
+    expect(meaningsOverlap('n. 苹果, 水果, 果实, 桌子\nv. 摆放', 'n. 苹果；水果；果实；河流\nv. 流动')).toBe(true);
+  });
 });
 
 describe('generateOptions', () => {
   const target = word('apple', { translation: 'n. 苹果' });
   const pool = [target, word('table', { translation: 'n. 桌子', frq: 980 }), word('chair', { translation: 'n. 椅子', frq: 1050 }), word('river', { translation: 'n. 河流', frq: 1100 })];
+  it('reuses a pure prepared index without changing results or inputs', () => {
+    const before = structuredClone(pool);
+    const index = prepareChoicePool(pool);
+    expect(index.records).toHaveLength(pool.length);
+    expect(generateOptions(target, index, () => 0.37)).toEqual(generateOptions(target, pool, () => 0.37));
+    expect(generateOptions(target, index, () => 0.37)).toEqual(generateOptions(target, index, () => 0.37));
+    expect(pool).toEqual(before);
+  });
   it('has exactly one correct answer and three distinct comparable distractors', () => {
     const options = generateOptions(target, [...pool,
       word('verb', { pos: 'v:100', translation: 'v. 攀登' }),
@@ -45,7 +60,7 @@ describe('generateOptions', () => {
     const before = [...pool];
     expect(generateOptions(target, pool.slice(0, 3))).toBeNull();
     expect(generateOptions(target, [target, ...pool.slice(1).map(item => ({ ...item, translation: 'n. 桌子' }))])).toBeNull();
-    expect(generateOptions(word('mystery', { pos: '', translation: '未知' }), pool)).toBeNull();
+    expect(generateOptions(word('mystery', { pos: '', translation: '未知' }), pool)).toHaveLength(4);
     expect(pool).toEqual(before);
   });
   it('deduplicates words case-insensitively and supports unknown-rank pools', () => {
@@ -58,13 +73,34 @@ describe('generateOptions', () => {
     expect(generateOptions(target, pool, () => 0)?.findIndex(item => item.id === target.id))
       .not.toBe(generateOptions(target, pool, () => 0.999)?.findIndex(item => item.id === target.id));
   });
-  it('skips impossible questions and terminates at exhaustion', () => {
-    const impossible = word('the', { pos: 'art', translation: 'art. 这' });
-    const next = nextQuestion([impossible, ...pool], 0, () => 0.5);
-    expect(next.cursor).toBe(1);
-    expect(next.skipped).toBe(1);
-    expect(next.question?.word.id).toBe(target.id);
-    expect(nextQuestion([impossible], 0)).toEqual({ cursor: 1, skipped: 1, question: null });
-    expect(nextQuestion([], 0)).toEqual({ cursor: 0, skipped: 0, question: null });
+  it('relaxes frequency before POS, keeping available close candidates', () => {
+    const far = word('far', { translation: 'n. 河流', frq: 90000 });
+    const options = generateOptions(target, [target, pool[1]!, pool[2]!, far,
+      word('verb', { translation: 'v. 攀登', pos: 'v' })], () => 0.99)!;
+    expect(new Set(options.map(item => item.id))).toEqual(new Set(['apple', 'table', 'chair', 'far']));
+  });
+  it('relaxes POS only when needed and never relaxes meaning separation', () => {
+    const options = generateOptions(target, [target, pool[1]!,
+      word('same-sense-far', { translation: 'n. 苹果', frq: 90000 }),
+      word('same-sense-verb', { translation: 'v. 苹果', pos: 'v' }),
+      word('climb', { translation: 'v. 攀登', pos: 'v', frq: 50000 }),
+      word('blue', { translation: 'a. 蓝色的', pos: 'a', frq: 0 }),
+    ], () => 0.99)!;
+    expect(new Set(options.map(item => item.id))).toEqual(new Set(['apple', 'table', 'climb', 'blue']));
+    for (let a = 0; a < options.length; a++) for (let b = a + 1; b < options.length; b++) {
+      expect(meaningsOverlap(options[a]!.translation, options[b]!.translation)).toBe(false);
+    }
+  });
+  it('searches alternative combinations instead of giving up after a blocking choice', () => {
+    const options = generateOptions(target, [target, word('blocker', { translation: 'n. 桌子, 椅子, 河流' }), ...pool.slice(1)], () => 0.999)!;
+    expect(options).toHaveLength(4);
+    expect(options.some(item => item.id === 'blocker')).toBe(false);
+  });
+  it('uses shortened text in the prepared index and the standalone target path', () => {
+    const hiddenOverlap = pool.map(item => ({ ...item, translation: `${item.translation}\nv. 共有隐藏释义` }));
+    const index = prepareChoicePool(hiddenOverlap.slice(1));
+    expect(generateOptions(hiddenOverlap[0]!, index, () => 0.37)).toHaveLength(4);
+    const duplicate = word('duplicate', { translation: 'n. 苹果\nv. 另一个隐藏释义' });
+    expect(generateOptions(hiddenOverlap[0]!, [...hiddenOverlap.slice(0, 3), duplicate])).toBeNull();
   });
 });

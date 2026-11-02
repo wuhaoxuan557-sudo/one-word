@@ -23,4 +23,5 @@ export interface Answer {
   correct: boolean;
   elapsedMs: number;
   answeredAt: number;
+  rating: 'Again' | 'Hard' | 'Good' | 'Easy';
 }

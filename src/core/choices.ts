@@ -1,4 +1,5 @@
-import type { Question, Word } from '../types';
+import type { Word } from '../types';
+import { formatOptionTranslation } from './translation.ts';
 
 const aliases: Readonly<Record<string, string>> = {
   a: 'adj', j: 'adj', adj: 'adj', ad: 'adv', r: 'adv', adv: 'adv',
@@ -17,27 +18,40 @@ export function primaryPos(word: Pick<Word, 'pos' | 'translation'>): string | nu
   return first ? aliases[first] ?? null : null;
 }
 
-function senses(translation: string): string[] {
-  return translation.toLowerCase().split('\n').flatMap(line =>
+interface Sense { text: string; grams: ReadonlySet<string> }
+interface PreparedWord { word: Word; meaning: Sense[]; pos: string | null }
+export interface ChoicePool {
+  records: readonly PreparedWord[];
+  byId: ReadonlyMap<string, PreparedWord>;
+}
+
+function senses(translation: string): Sense[] {
+  return formatOptionTranslation(translation).toLowerCase().split('\n').flatMap(line =>
     line.replace(/^\s*(?:(?:[a-z]+)\.?\s*[,/&]\s*)*[a-z]+\.\s*/i, '')
       .replace(/\[[^\]]*\]|【[^】]*】|\([^)]*\)|（[^）]*）/g, '')
       .split(/[,，;；、]/)
       .map(value => value.replace(/[^\p{L}\p{N}]/gu, ''))
-      .filter(Boolean),
+      .filter(Boolean)
+      .map(text => ({ text, grams: new Set(Array.from({ length: Math.max(0, text.length - 1) }, (_, index) => text.slice(index, index + 2))) })),
   );
 }
 
+export function prepareChoicePool(words: readonly Word[]): ChoicePool {
+  const records = words.map(word => ({ word, meaning: senses(word.translation), pos: primaryPos(word) }));
+  return { records, byId: new Map(records.map(record => [record.word.id, record])) };
+}
+
 export function meaningsOverlap(a: string, b: string): boolean {
-  const left = senses(a);
-  const right = senses(b);
+  return overlap(senses(a), senses(b));
+}
+
+function overlap(left: Sense[], right: Sense[]): boolean {
   if (!left.length || !right.length) return true;
   return left.some(x => right.some(y => {
-    if (x === y || (Math.min(x.length, y.length) >= 2 && (x.includes(y) || y.includes(x)))) return true;
-    const grams = (value: string) => new Set(Array.from({ length: Math.max(0, value.length - 1) }, (_, i) => value.slice(i, i + 2)));
-    const gx = grams(x);
-    const gy = grams(y);
-    const common = [...gx].filter(gram => gy.has(gram)).length;
-    return common > 0 && common / (gx.size + gy.size - common) >= 0.65;
+    if (x.text === y.text || (Math.min(x.text.length, y.text.length) >= 2 && (x.text.includes(y.text) || y.text.includes(x.text)))) return true;
+    let common = 0;
+    for (const gram of x.grams) if (y.grams.has(gram)) common++;
+    return common > 0 && common / (x.grams.size + y.grams.size - common) >= 0.65;
   }));
 }
 
@@ -52,38 +66,45 @@ function shuffle<T>(items: readonly T[], random: () => number): T[] {
   return result;
 }
 
-export function generateOptions(target: Word, pool: readonly Word[], random: () => number = Math.random): Word[] | null {
-  const pos = primaryPos(target);
-  if (!pos || !target.translation.trim()) return null;
-  const distance = (word: Word) => target.frq > 0 && word.frq > 0 ? Math.abs(word.frq - target.frq) : 0;
+export function generateOptions(target: Word, pool: readonly Word[] | ChoicePool, random: () => number = Math.random): Word[] | null {
+  const prepared = 'records' in pool ? pool : prepareChoicePool(pool);
+  const pos = prepared.byId.get(target.id)?.pos ?? primaryPos(target);
+  if (!target.translation.trim()) return null;
+  const targetSenses = prepared.byId.get(target.id)?.meaning ?? senses(target.translation);
+  const distance = (word: Word) => target.frq > 0 && word.frq > 0 ? Math.abs(word.frq - target.frq) : Infinity;
   const seen = new Set([target.word.toLowerCase()]);
-  const candidates = pool.filter(word => {
+  const candidates = prepared.records.flatMap(record => {
+    const { word, meaning } = record;
     const key = word.word.toLowerCase();
-    if (word.id === target.id || seen.has(key) || primaryPos(word) !== pos || !word.translation.trim()) return false;
-    // Unknown ranks only pair with other unknown ranks. Never invent proximity.
-    if ((target.frq === 0) !== (word.frq === 0)) return false;
-    if (distance(word) > Math.max(1000, target.frq * 0.75)) return false;
-    if (meaningsOverlap(target.translation, word.translation)) return false;
+    if (word.id === target.id || seen.has(key) || !word.translation.trim()) return [];
+    if (overlap(targetSenses, meaning)) return [];
     seen.add(key);
-    return true;
-  }).sort((a, b) => distance(a) - distance(b)).slice(0, 24);
-  const selected: Word[] = [];
-  for (const candidate of shuffle(candidates, random)) {
-    if (selected.every(word => !meaningsOverlap(word.translation, candidate.translation))) selected.push(candidate);
-    if (selected.length === 3) return shuffle([target, ...selected], random);
+    const samePos = pos !== null && record.pos === pos;
+    const near = (target.frq === 0 && word.frq === 0) || distance(word) <= Math.max(1000, target.frq * 0.75);
+    return [{ word, meaning, tier: samePos ? near ? 0 : 1 : 2 }];
+  });
+  const nearest = candidates.filter(item => item.tier === 0).sort((a, b) => distance(a.word) - distance(b.word));
+  const ordered = [
+    ...shuffle(nearest.slice(0, 24), random), ...nearest.slice(24),
+    ...shuffle(candidates.filter(item => item.tier === 1), random),
+    ...shuffle(candidates.filter(item => item.tier === 2), random),
+  ];
+  // Search combinations, not just a greedy path: an early choice may block a valid trio.
+  for (let tier = 0; tier <= 2; tier++) {
+    const eligible = ordered.filter(item => item.tier <= tier);
+    for (let a = 0; a < eligible.length - 2; a++) {
+      const first = eligible[a]!;
+      for (let b = a + 1; b < eligible.length - 1; b++) {
+        const second = eligible[b]!;
+        if (overlap(first.meaning, second.meaning)) continue;
+        for (let c = b + 1; c < eligible.length; c++) {
+          const third = eligible[c]!;
+          if (!overlap(first.meaning, third.meaning) && !overlap(second.meaning, third.meaning)) {
+            return shuffle([target, first.word, second.word, third.word], random);
+          }
+        }
+      }
+    }
   }
-  // Small/ambiguous pools must not silently produce invalid or duplicate options.
   return null;
-}
-
-export function nextQuestion(words: readonly Word[], start: number, random: () => number = Math.random): { question: Question | null; cursor: number; skipped: number } {
-  let skipped = 0;
-  for (let cursor = start; cursor < words.length; cursor++) {
-    const word = words[cursor];
-    if (!word) continue;
-    const options = generateOptions(word, words, random);
-    if (options) return { question: { word, options }, cursor, skipped };
-    skipped++;
-  }
-  return { question: null, cursor: words.length, skipped };
 }

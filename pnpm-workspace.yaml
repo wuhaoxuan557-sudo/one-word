@@ -1,0 +1,3 @@
+# Keep the existing test dependency outside pnpm's release-age quarantine.
+overrides:
+  tinybench: 6.2.2
