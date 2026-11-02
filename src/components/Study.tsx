@@ -77,12 +77,12 @@ function DefinitionLine({ line }: { line: string }) {
   return <p className="chinese-definition">{match ? <><i className="part-of-speech">{match[1]}</i>{match[2]}</> : line}</p>;
 }
 
-export function DetailContent({ word, onSpeak, headingRef, scrollRef }: { word: Word; onSpeak: () => void; headingRef: RefObject<HTMLHeadingElement | null>; scrollRef: RefObject<HTMLDivElement | null> }) {
+export function DetailContent({ word, onSpeak, headingRef, scrollRef, tags = 'CET4' }: { word: Word; onSpeak: () => void; headingRef: RefObject<HTMLHeadingElement | null>; scrollRef: RefObject<HTMLDivElement | null>; tags?: string }) {
   const forms = parseExchange(word.exchange);
   return <div className="detail-content" ref={scrollRef} aria-label="单词详情">
     <div className="detail-word-block">
       <div className="detail-title-row"><h1 className="detail-word" lang="en" ref={headingRef} tabIndex={-1}>{word.word}</h1><p className="stars" role="img" aria-label={`柯林斯 ${word.collins} 星`}>{'★'.repeat(word.collins)}<span>{'★'.repeat(5 - word.collins)}</span></p></div>
-      <div className="detail-pronunciation-row"><Pronunciation word={word} onSpeak={onSpeak} detail /><p className="word-tags">CET4</p></div>
+      <div className="detail-pronunciation-row"><Pronunciation word={word} onSpeak={onSpeak} detail /><p className="word-tags">{tags}</p></div>
     </div>
     <section className="definition-section"><h2>释义</h2><div>{formatDetailTranslation(word.translationFull || '暂无中文释义').split('\n').map((line, index) => <DefinitionLine key={index} line={line} />)}</div></section>
     <section className="definition-section"><h2>英文释义</h2><p className="english-definition" lang="en">{word.definition || '暂无英文释义'}</p></section>
@@ -90,9 +90,9 @@ export function DetailContent({ word, onSpeak, headingRef, scrollRef }: { word: 
   </div>;
 }
 
-export function DetailFooter({ ratingText, onNext }: { ratingText: string; onNext: () => void }) {
+export function DetailFooter({ ratingText, onNext, bookmarked, onBookmark, busy }: { ratingText: string; onNext: () => void; bookmarked: boolean; onBookmark: () => void; busy: boolean }) {
   return <footer className="detail-footer"><p className="detail-rating" aria-label={`评分 ${ratingText}`}>{ratingText}</p><div className="detail-actions">
-    <button className="bookmark-button" disabled aria-label="生词本（稍后推出）"><Icon name="bookmark" /></button>
+    <button className="bookmark-button" disabled={busy} aria-pressed={bookmarked} aria-label={bookmarked ? '移出生词本' : '加入生词本'} onClick={onBookmark}><Icon name="bookmark" /></button>
     <button className="primary-button" onClick={onNext}>下一个</button>
   </div></footer>;
 }

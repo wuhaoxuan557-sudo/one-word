@@ -4,13 +4,24 @@ import type { ChoicePool } from './choices';
 import { buildDailyPlan, readyQueue } from './queue';
 import { GRADING_CONFIG, gradeAnswer } from './rating';
 import { emptyCard, scheduleCard } from './scheduler';
+import { snapshotWord } from './wordSnapshot';
 
 export function defaultSettings(now: number): AppSettings {
   return { id: 'app', newLimit: 20, reviewLimit: 200, grading: { ...GRADING_CONFIG }, autoSpeak: true,
-    accent: 'en-GB', createdAt: now, lastExportAt: null, daily: null };
+    accent: 'en-GB', createdAt: now, lastExportAt: null, daily: null, selectedWordlists: ['cet4'] };
 }
 export function reconcileSnapshot(snapshot: Snapshot, words: readonly Word[], now: number): Snapshot {
-  return { ...snapshot, settings: { ...snapshot.settings, daily: buildDailyPlan(words, snapshot.cards, snapshot.settings, now) } };
+  let settings = snapshot.settings;
+  const plan = settings.daily;
+  const current = plan?.current;
+  if (plan && current && !current.answer && !words.some(word => word.id === current.wordId)) {
+    const usedNew = snapshot.cards.some(card => card.wordId === current.wordId && card.fsrs.reps > 0);
+    const usedReview = snapshot.logs.some(log => log.day === plan.day && log.wordId === current.wordId);
+    settings = { ...settings, daily: { ...plan, current: null,
+      newIds: plan.newIds.filter(id => id !== current.wordId || usedNew),
+      reviewIds: plan.reviewIds.filter(id => id !== current.wordId || usedReview) } };
+  }
+  return { ...snapshot, activeWordIds: words.map(word => word.id), settings: { ...settings, daily: buildDailyPlan(words, snapshot.cards, settings, now) } };
 }
 
 export type StudyAction =
@@ -24,10 +35,10 @@ function chooseCurrent(snapshot: Snapshot, words: readonly Word[], pool: ChoiceP
   const plan = snapshot.settings.daily!;
   if (plan.current) return snapshot;
   const ready = readyQueue(snapshot, now);
-  const next = ready.find(item => item.wordId === plan.preferredNextId) ?? ready[0];
+  const next = ready.find(item => item.wordId === plan.preferredNextId && item.kind === ready[0]?.kind) ?? ready[0];
   if (!next) return snapshot;
   const word = words.find(item => item.id === next.wordId);
-  if (!word) throw new Error('The current word is missing from CET4.');
+  if (!word) throw new Error('The current word is missing from the selected wordlists.');
   const sequence = plan.sequence + 1;
   let seed = (now + sequence) >>> 0;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -81,7 +92,9 @@ export function transitionStudy(input: Snapshot, action: StudyAction, words: rea
     ? withPlan(snapshot, { ...plan, current: { ...current, phase: 'details' } }) : snapshot;
   if (action.type === 'slash') {
     const card = previous ?? emptyCard(current.wordId, now);
-    snapshot = putCard(snapshot, { ...card, slashed: true, slashedAt: now });
+    const word = words.find(word => word.id === current.wordId);
+    snapshot = putCard(snapshot, { ...card, slashed: true, slashedAt: now,
+      wordSnapshot: word ? snapshotWord(word) : card.wordSnapshot });
     return chooseCurrent(withPlan(snapshot, { ...plan, current: null, completed: plan.completed + (current.answer ? 0 : 1),
       undo: { wordId: current.wordId, previous: previous ?? null, expiresAt: now + 3000, day: plan.day, counted: !current.answer } }), words, pool, now);
   }

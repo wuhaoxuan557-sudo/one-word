@@ -1,0 +1,29 @@
+Browser tab: 11, Title: "一词 · 单词练习", URL: "http://localhost:5188/".
+1 AXWebArea 一词 · 单词练习, URL: localhost:5188/
+	2 container
+		3 button 退出学习
+		4 progress indicator Description: 今日学习进度, Value: 7
+		5 container
+			6 text 7  /  26
+		7 button 斩：标记为已掌握，不再出现
+		8 container 当前单词
+			9 text 新词
+			10 heading part, Value: 1
+				11 text part
+			12 button 重播 part 发音
+		13 container 选择正确释义
+			14 button 选项 1：n. 小山羊；小山羊肉；小孩
+				15 text 1
+				16 text n. 小山羊；小山羊肉；小孩
+			17 button 选项 2：n. 发行；问题；后果
+				18 text 2
+				19 text n. 发行；问题；后果
+			20 button 选项 3：n. 部分；局部；零件
+				21 text 3
+				22 text n. 部分；局部；零件
+			23 button 选项 4：n. 铅；铅条；领导
+				24 text 4
+				25 text n. 铅；铅条；领导
+		26 button 不认识
+
+The focused UI element is 10 heading part, Value: 1

@@ -53,9 +53,9 @@ def build(csv_path: Path, output: Path, custom_dir: Path) -> dict[str, int]:
         for path in sorted(custom_dir.glob("*.txt"))
     }
     # Refuse ambiguous names rather than overwrite an exam wordlist.
-    conflicts = {name for name in custom if name.casefold() in TAGS}
+    conflicts = {name for name in custom if name.casefold() in (*TAGS, "index")}
     if conflicts:
-        raise ValueError("自定义词表不能使用考试标签名：" + ", ".join(sorted(conflicts)))
+        raise ValueError("自定义词表不能使用考试标签名或 index：" + ", ".join(sorted(conflicts)))
     wanted = {word for words in custom.values() for word in words}
     found: dict[str, dict] = {}
     lists: dict[str, list[dict]] = {tag: [] for tag in TAGS}
@@ -93,7 +93,19 @@ def build(csv_path: Path, output: Path, custom_dir: Path) -> dict[str, int]:
         destination.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         counts[name] = len(items)
         print(f"{name}: {len(items)} 词 -> {destination}")
+    write_index(lists, output)
     return counts
+
+
+def write_index(lists: dict[str, list[dict]], output: Path) -> None:
+    memberships: dict[str, int] = {}
+    for bit, tag in enumerate(TAGS):
+        for item in lists[tag]:
+            memberships[item["id"]] = memberships.get(item["id"], 0) | (1 << bit)
+    index = {"version": 1, "counts": {tag: len(lists[tag]) for tag in TAGS},
+             "memberships": memberships}
+    (output / "index.json").write_text(
+        json.dumps(index, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
 def main() -> None:

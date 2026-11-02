@@ -29,6 +29,11 @@ import type { Card, ReviewLog as FSRSReviewLog } from 'ts-fsrs';
 import type { GradingConfig } from './core/rating';
 
 
+export interface WordSnapshot {
+  word: string;
+  translation: string;
+  translationFull?: string;
+}
 export interface CardRecord {
   wordId: string;
   fsrs: Card;
@@ -37,6 +42,8 @@ export interface CardRecord {
   everWrong: boolean;
   introducedAt: number | null;
   slashedAt: number | null;
+  bookmarkedAt?: number | null;
+  wordSnapshot?: WordSnapshot;
 }
 export interface ReviewEntry extends Answer {
   id: string;
@@ -77,9 +84,12 @@ export interface AppSettings {
   createdAt: number;
   lastExportAt: number | null;
   daily: DailyPlan | null;
+  selectedWordlists: string[];
 }
+export type Preferences = Pick<AppSettings, 'newLimit' | 'reviewLimit' | 'grading' | 'autoSpeak' | 'accent' | 'selectedWordlists'>;
 export interface Snapshot {
   cards: CardRecord[];
   logs: ReviewEntry[];
   settings: AppSettings;
+  activeWordIds?: string[];
 }

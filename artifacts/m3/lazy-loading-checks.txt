@@ -1,0 +1,12 @@
+M3 lazy loading checks
+PASS cold startup fetches only the selected CET4 JSON, no index or other lists
+PASS legacy migration loads only the required GRE source in addition to CET4
+PASS migration persists display snapshots without changing FSRS or saved flags
+PASS database reopen retains the GRE bookmark while fetching only CET4
+PASS wordbook visibly renders an unselected GRE word and its short definition from the persisted snapshot
+PASS removing a bookmark and unslashing an unloaded word need no source fetch
+PASS switching to GRE loads it once and brings the restored word into its queue
+PASS failed import resource loading leaves all three existing tables unchanged
+PASS legacy import validation fetches only referenced sources and fills snapshots without writing before confirmation
+PASS confirmed legacy import atomically saves the completed snapshot
+ALL LAZY LOADING CHECKS PASSED

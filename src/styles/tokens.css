@@ -15,6 +15,9 @@
   --faded-border: #EAE7E0;
   --faded-num: #A9A398;
   --star-empty: #CFCAC0;
+  --chart-muted: #8C867C;
+  --chart-axis: #CFCAC0;
+  --switch-shadow: rgba(0, 0, 0, 0.2);
   --correct-bg: #E3EFE7;
   --correct-border: #2D6A4F;
   --correct-fg: #1F4D38;
@@ -41,6 +44,8 @@
     --faded-border: #24231F;
     --faded-num: #5F5A52;
     --star-empty: #3A3833;
+    --chart-muted: #7D786E;
+    --chart-axis: #3A3833;
     --correct-bg: #1B3126;
     --correct-border: #5FAE86;
     --correct-fg: #A6DCBE;

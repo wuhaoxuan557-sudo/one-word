@@ -49,6 +49,10 @@ class BuildTests(unittest.TestCase):
             self.assertEqual({word["word"] for word in mine}, {"apple", "river"})
             self.assertEqual(mine[0]["id"], cet4[1]["id"])
             self.assertEqual(len(mine[1]["translation"].splitlines()), 2)
+            index = json.loads((root / "out/index.json").read_text(encoding="utf-8"))
+            self.assertEqual(index["counts"]["cet4"], 3)
+            self.assertEqual(index["memberships"]["ecdict:apple"], 6)
+            self.assertNotIn("ecdict:river", index["memberships"])
 
     def test_bad_header_and_name_collisions_do_not_write_output(self):
         with tempfile.TemporaryDirectory() as temporary:

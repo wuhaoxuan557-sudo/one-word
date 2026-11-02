@@ -25,6 +25,7 @@ export function buildDailyPlan(words: readonly Word[], cards: readonly CardRecor
   if (plan.undo && now >= plan.undo.expiresAt) plan.undo = null;
   const records = new Map(cards.map(card => [card.wordId, card]));
   const allowed = new Set(words.map(word => word.id));
+  if (plan.current && !allowed.has(plan.current.wordId)) plan.current = null;
   const admitted = new Set([...plan.newIds, ...plan.reviewIds]);
   // Admit distinct cards once per local day; learning repetitions reuse that slot.
   const due = cards.filter(card => allowed.has(card.wordId) && !card.slashed && card.fsrs.reps > 0 &&
@@ -32,7 +33,9 @@ export function buildDailyPlan(words: readonly Word[], cards: readonly CardRecor
     .sort((a, b) => a.fsrs.due.getTime() - b.fsrs.due.getTime() || a.wordId.localeCompare(b.wordId));
   plan.reviewIds.push(...due.slice(0, Math.max(0, settings.reviewLimit - plan.reviewIds.length)).map(card => card.wordId));
   const seenWords = new Set<string>();
-  const fresh = sortByFrequency(words).filter(word => {
+  const fresh = sortByFrequency(words).sort((a, b) =>
+    Number(b.id === plan.preferredNextId) - Number(a.id === plan.preferredNextId) ||
+    Number(Boolean(records.get(b.id)?.bookmarked)) - Number(Boolean(records.get(a.id)?.bookmarked))).filter(word => {
     const key = word.word.toLowerCase();
     const record = records.get(word.id);
     if (seenWords.has(key)) return false;
@@ -48,7 +51,9 @@ export function dailyQueue(snapshot: Snapshot, now: number): QueueItem[] {
   const plan = snapshot.settings.daily;
   if (!plan) return [];
   const records = new Map(snapshot.cards.map(card => [card.wordId, card]));
+  const allowed = snapshot.activeWordIds ? new Set(snapshot.activeWordIds) : null;
   return [...plan.reviewIds, ...plan.newIds].flatMap<QueueItem>(wordId => {
+    if (allowed && !allowed.has(wordId)) return [];
     if (plan.current?.wordId === wordId && !plan.current.answer) return [];
     const card = records.get(wordId);
     if (card?.slashed) return [];
@@ -71,7 +76,8 @@ export function waitingSummary(snapshot: Snapshot, now: number) {
   const admitted = new Set([...(plan?.newIds ?? []), ...(plan?.reviewIds ?? [])]);
   const pending = dailyQueue(snapshot, now).filter(item => item.dueAt > now);
   const availableSlots = Math.max(0, snapshot.settings.reviewLimit - (plan?.reviewIds.length ?? 0));
-  const upcoming = snapshot.cards.filter(card => !admitted.has(card.wordId) && !card.slashed &&
+  const allowed = snapshot.activeWordIds ? new Set(snapshot.activeWordIds) : null;
+  const upcoming = snapshot.cards.filter(card => (!allowed || allowed.has(card.wordId)) && !admitted.has(card.wordId) && !card.slashed &&
     isLearning(card) && card.fsrs.reps > 0 && card.fsrs.due.getTime() > now)
     .sort((a, b) => a.fsrs.due.getTime() - b.fsrs.due.getTime()).slice(0, availableSlots);
   const dueTimes = [...pending.map(item => item.dueAt), ...upcoming.map(card => card.fsrs.due.getTime())];
@@ -108,7 +114,7 @@ export function homeSummary(snapshot: Snapshot, words: readonly Word[], now: num
   const earlyCount = readyQueue(snapshot, now).filter(item => item.dueAt > now).length;
   return { newCount, reviewCount, minutes: estimateMinutes(newCount, reviewCount + earlyCount, snapshot.logs),
     learned: cards.filter(card => card.fsrs.reps > 0 || card.slashed).length,
-    slashed: cards.filter(card => card.slashed).length, bookmarked: cards.filter(card => card.bookmarked).length,
+    slashed: snapshot.cards.filter(card => card.slashed).length, bookmarked: snapshot.cards.filter(card => card.bookmarked).length,
     backupDays: Math.floor((now - (snapshot.settings.lastExportAt ?? snapshot.settings.createdAt)) / 86_400_000) };
 }
 
@@ -116,8 +122,9 @@ export function nextWakeAt(snapshot: Snapshot, now: number): number {
   const plan = snapshot.settings.daily;
   const admitted = new Set([...(plan?.newIds ?? []), ...(plan?.reviewIds ?? [])]);
   const canAdmit = (plan?.reviewIds.length ?? 0) < snapshot.settings.reviewLimit;
+  const allowed = snapshot.activeWordIds ? new Set(snapshot.activeWordIds) : null;
   return Math.min(nextMidnight(now), plan?.undo?.expiresAt ?? Infinity,
-    ...snapshot.cards.filter(card => !card.slashed && card.fsrs.reps > 0 && card.fsrs.due.getTime() > now &&
+    ...snapshot.cards.filter(card => (!allowed || allowed.has(card.wordId)) && !card.slashed && card.fsrs.reps > 0 && card.fsrs.due.getTime() > now &&
       (canAdmit || admitted.has(card.wordId))).map(card => {
         const due = card.fsrs.due.getTime();
         return isLearning(card) && due - learnAheadMs > now ? due - learnAheadMs : due;

@@ -2,6 +2,15 @@ import type { Snapshot, Word } from '../types';
 import { homeSummary, readyQueue, waitingSummary } from '../core/queue';
 import { formatDue } from '../core/scheduler';
 import { Icon } from './Study';
+import { wordlistLabel } from '../core/catalog';
+
+export type MainPage = 'home' | 'wordbook' | 'stats' | 'settings';
+export function Navigation({ page, onNavigate }: { page: MainPage; onNavigate: (page: MainPage) => void }) {
+  return <nav className="home-nav" aria-label="主导航">{(['home', 'wordbook', 'stats', 'settings'] as const).map((item, index) =>
+    <button key={item} aria-current={page === item ? 'page' : undefined} aria-label={['首页', '词本', '统计', '设置'][index]} onClick={() => onNavigate(item)}>
+      {item === 'wordbook' ? <Icon name="bookmark" /> : <NavigationIcon name={item} />}{['学习', '词本', '统计', '设置'][index]}
+    </button>)}</nav>;
+}
 
 function NavigationIcon({ name }: { name: 'home' | 'stats' | 'settings' }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -11,7 +20,10 @@ function NavigationIcon({ name }: { name: 'home' | 'stats' | 'settings' }) {
   </svg>;
 }
 
-export function Home({ snapshot, words, now, onStart, busy }: { snapshot: Snapshot; words: Word[]; now: number; onStart: () => void; busy: boolean }) {
+export function Home({ snapshot, words, now, onStart, busy, onWordlists, onWordbook, onExport }: {
+  snapshot: Snapshot; words: Word[]; now: number; onStart: () => void; busy: boolean;
+  onWordlists: () => void; onWordbook: (tab: 'bookmarked' | 'slashed') => void; onExport: () => void;
+}) {
   const summary = homeSummary(snapshot, words, now);
   const date = new Date(now);
   const dayText = `${date.getMonth() + 1}月${date.getDate()}日 · 周${'日一二三四五六'[date.getDay()]}`;
@@ -21,7 +33,7 @@ export function Home({ snapshot, words, now, onStart, busy }: { snapshot: Snapsh
   const overdue = now - (snapshot.settings.lastExportAt ?? snapshot.settings.createdAt) > 14 * 86_400_000;
   return <>
     <section className="home-main" aria-label="学习首页">
-      <div className="home-heading"><p>{dayText}</p><span className="wordlist-badge">CET4</span></div>
+      <div className="home-heading"><p>{dayText}</p><button className="wordlist-badge" aria-label="选择词表" onClick={onWordlists}>{wordlistLabel(snapshot.settings.selectedWordlists)}</button></div>
       <h1 className="home-title">今天要做的</h1>
       <div className="home-counts">
         <div><p className="home-number" aria-label={`待复习 ${summary.reviewCount}`}>{summary.reviewCount}</p><p>待复习</p></div>
@@ -30,24 +42,18 @@ export function Home({ snapshot, words, now, onStart, busy }: { snapshot: Snapsh
       <div className="home-divider" />
       <section className="home-wordlist-progress" aria-label="词表进度">
         <div><h2>词表进度</h2><p>{summary.learned.toLocaleString('zh-CN')} / {words.length.toLocaleString('zh-CN')}</p></div>
-        <div className="home-progress-track" role="progressbar" aria-label="CET4 已学习或已斩" aria-valuemin={0} aria-valuemax={words.length} aria-valuenow={summary.learned}><span style={{ width: `${words.length ? summary.learned / words.length * 100 : 0}%` }} /></div>
+        <div className="home-progress-track" role="progressbar" aria-label="当前词表已学习或已斩" aria-valuemin={0} aria-valuemax={words.length} aria-valuenow={summary.learned}><span style={{ width: `${words.length ? summary.learned / words.length * 100 : 0}%` }} /></div>
       </section>
       <div className="home-stat-cards">
-        <button disabled aria-label={`已斩 ${summary.slashed}，词本稍后推出`}><span className="small-seal" aria-hidden="true">斩</span><span><strong>{summary.slashed}</strong><small>已斩</small></span></button>
-        <button disabled aria-label={`生词本 ${summary.bookmarked}，稍后推出`}><Icon name="bookmark" /><span><strong>{summary.bookmarked}</strong><small>生词本</small></span></button>
+        <button onClick={() => onWordbook('slashed')} aria-label={`已斩 ${summary.slashed}`}><span className="small-seal" aria-hidden="true">斩</span><span><strong>{summary.slashed}</strong><small>已斩</small></span></button>
+        <button onClick={() => onWordbook('bookmarked')} aria-label={`生词本 ${summary.bookmarked}`}><Icon name="bookmark" /><span><strong>{summary.bookmarked}</strong><small>生词本</small></span></button>
       </div>
       <div className="home-spacer" />
-      {overdue && <div className="backup-reminder"><p>{snapshot.settings.lastExportAt ? `距上次备份已 ${summary.backupDays} 天` : `尚未备份 · 已使用 ${summary.backupDays} 天`}</p><button disabled aria-label="导出备份（稍后推出）">导出备份</button></div>}
+      {overdue && <div className="backup-reminder"><p>{snapshot.settings.lastExportAt ? `距上次备份已 ${summary.backupDays} 天` : `尚未备份 · 已使用 ${summary.backupDays} 天`}</p><button disabled={busy} onClick={onExport}>导出备份</button></div>}
       <button className="primary-button home-start" disabled={!canStart || busy} onClick={onStart}>
         {canStart ? resumable ? '继续学习' : '开始学习' : waiting.count ? '稍后再来' : '今日已完成'}
         <span>{canStart ? `约 ${summary.minutes} 分钟` : waiting.count ? formatDue(waiting.dueAt, now) : ''}</span>
       </button>
     </section>
-    <nav className="home-nav" aria-label="主导航">
-      <button aria-current="page" aria-label="首页"><NavigationIcon name="home" />学习</button>
-      <button disabled aria-label="词本（稍后推出）"><Icon name="bookmark" />词本</button>
-      <button disabled aria-label="统计（稍后推出）"><NavigationIcon name="stats" />统计</button>
-      <button disabled aria-label="设置（稍后推出）"><NavigationIcon name="settings" />设置</button>
-    </nav>
   </>;
 }
