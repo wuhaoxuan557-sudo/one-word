@@ -4,6 +4,7 @@
   --surface: #FFFFFF;
   --ink: #1C1B19;
   --on-ink: #F6F5F1;
+  --on-ink-muted: #BDB8AE;
   --ink-2: #5F5A52;
   --ink-3: #6E685F;
   --line: #E4E1D9;
@@ -29,6 +30,7 @@
     --surface: #1F1E1B;
     --ink: #ECE9E2;
     --on-ink: #151513;
+    --on-ink-muted: #5F5A52;
     --ink-2: #A8A296;
     --ink-3: #A8A296;
     --line: #2E2C28;

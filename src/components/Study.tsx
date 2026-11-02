@@ -16,7 +16,7 @@ export function StudyHeader({ current, total, onExit, onSlash }: { current: numb
   return <header className="study-header">
     <button className="exit-button" onClick={onExit} aria-label="退出学习"><Icon name="close" /></button>
     <div className="study-progress">
-      <div className="progress-track" role="progressbar" aria-label="本轮词表进度" aria-valuemin={0} aria-valuemax={total} aria-valuenow={current}><span style={{ width: `${total ? current / total * 100 : 0}%` }} /></div>
+      <div className="progress-track" role="progressbar" aria-label="今日学习进度" aria-valuemin={0} aria-valuemax={total} aria-valuenow={current}><span style={{ width: `${total ? current / total * 100 : 0}%` }} /></div>
       <p className="progress-caption">{current} / {total}</p>
     </div>
     <button className="seal" onClick={onSlash} aria-label="斩：标记为已掌握，不再出现">斩</button>
@@ -36,12 +36,13 @@ interface CardProps {
   onSpeak: () => void;
   headingRef: RefObject<HTMLHeadingElement | null>;
   scrollRef: RefObject<HTMLDivElement | null>;
+  status: string;
 }
 
-export function QuizCard({ question, answer, onAnswer, onSpeak, headingRef, scrollRef }: CardProps) {
+export function QuizCard({ question, answer, onAnswer, onSpeak, headingRef, scrollRef, status }: CardProps) {
   return <div className="quiz-body" ref={scrollRef}>
     <section className="word-stage" aria-label="当前单词">
-      <p className="word-status">新词</p>
+      <p className="word-status">{status}</p>
       <h1 className="quiz-word" ref={headingRef} tabIndex={-1} lang="en">{question.word.word}</h1>
       <Pronunciation word={question.word} onSpeak={onSpeak} />
     </section>
@@ -61,11 +62,11 @@ export function QuizCard({ question, answer, onAnswer, onSpeak, headingRef, scro
   </div>;
 }
 
-export function FeedbackFooter({ answer, onContinue, onDetails, canAnswer }: { answer: Answer | null; onContinue: () => void; onDetails: () => void; canAnswer: boolean }) {
+export function FeedbackFooter({ answer, onContinue, onDetails, canAnswer, ratingText }: { answer: Answer | null; onContinue: () => void; onDetails: () => void; canAnswer: boolean; ratingText: string }) {
   const fast = answer?.rating === 'Good' || answer?.rating === 'Easy';
   return <footer className="quiz-footer">
     {!answer ? <button className="unknown-button" disabled={!canAnswer} onClick={onContinue}>不认识</button> : <>
-      <div className="result-row" role="status"><span className={answer.correct ? 'result-correct' : 'result-wrong'}>{answer.correct ? `答对了 · ${(answer.elapsedMs / 1000).toFixed(1)} 秒` : '选错了'}</span><span className="rating" aria-label={`评分 ${answer.rating}`}>{answer.rating}</span></div>
+      <div className="result-row" role="status"><span className={answer.correct ? 'result-correct' : 'result-wrong'}>{answer.correct ? `答对了 · ${(answer.elapsedMs / 1000).toFixed(1)} 秒` : answer.selectedId === null ? '没关系，记住它' : '选错了'}</span><span className="rating" aria-label={`评分 ${ratingText}`}>{ratingText}</span></div>
       <div className="feedback-actions"><button className="primary-button" onClick={onContinue}>{fast ? '下一个' : '看详情'}</button>{fast && <button className="text-button" onClick={onDetails}>看详情</button>}</div>
     </>}
   </footer>;
@@ -89,8 +90,8 @@ export function DetailContent({ word, onSpeak, headingRef, scrollRef }: { word: 
   </div>;
 }
 
-export function DetailFooter({ answer, onNext }: { answer: Answer; onNext: () => void }) {
-  return <footer className="detail-footer"><p className="detail-rating" aria-label={`评分 ${answer.rating}`}>{answer.rating}</p><div className="detail-actions">
+export function DetailFooter({ ratingText, onNext }: { ratingText: string; onNext: () => void }) {
+  return <footer className="detail-footer"><p className="detail-rating" aria-label={`评分 ${ratingText}`}>{ratingText}</p><div className="detail-actions">
     <button className="bookmark-button" disabled aria-label="生词本（稍后推出）"><Icon name="bookmark" /></button>
     <button className="primary-button" onClick={onNext}>下一个</button>
   </div></footer>;

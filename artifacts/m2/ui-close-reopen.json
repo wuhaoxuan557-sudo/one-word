@@ -1,0 +1,48 @@
+{
+  "before": {
+    "options": [
+      {
+        "disabled": true,
+        "label": "选项 1：n. 历史；过去；经历"
+      },
+      {
+        "disabled": true,
+        "label": "选项 2：n. 州；状态；情形，正确答案"
+      },
+      {
+        "disabled": true,
+        "label": "选项 3：n. 法律；法则；定律"
+      },
+      {
+        "disabled": true,
+        "label": "选项 4：n. 部分；局部；零件"
+      }
+    ],
+    "progress": "1 / 21",
+    "rating": "Again · 1 分钟后",
+    "word": "state"
+  },
+  "after": {
+    "options": [
+      {
+        "disabled": true,
+        "label": "选项 1：n. 历史；过去；经历"
+      },
+      {
+        "disabled": true,
+        "label": "选项 2：n. 州；状态；情形，正确答案"
+      },
+      {
+        "disabled": true,
+        "label": "选项 3：n. 法律；法则；定律"
+      },
+      {
+        "disabled": true,
+        "label": "选项 4：n. 部分；局部；零件"
+      }
+    ],
+    "progress": "1 / 21",
+    "rating": "Again · 现在",
+    "word": "state"
+  }
+}

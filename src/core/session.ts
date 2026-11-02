@@ -1,93 +1,96 @@
-import type { Answer, Question, Word } from '../types';
+import type { AppSettings, CardRecord, DailyPlan, Presentation, ReviewEntry, Snapshot, Word } from '../types';
 import { generateOptions } from './choices';
 import type { ChoicePool } from './choices';
-import { gradeAnswer } from './rating';
+import { buildDailyPlan, readyQueue } from './queue';
+import { GRADING_CONFIG, gradeAnswer } from './rating';
+import { emptyCard, scheduleCard } from './scheduler';
 
-export interface PracticeState {
-  question: Question | null;
-  remainingIds: string[];
-  total: number;
-  seed: number;
-  phase: 'recognise' | 'feedback' | 'details';
-  answer: Answer | null;
-  logs: Answer[];
-  failedIds: string[];
-  slashedIds: string[];
-  undo: { wordId: string; expiresAt: number; token: number } | null;
+export function defaultSettings(now: number): AppSettings {
+  return { id: 'app', newLimit: 20, reviewLimit: 200, grading: { ...GRADING_CONFIG }, autoSpeak: true,
+    accent: 'en-GB', createdAt: now, lastExportAt: null, daily: null };
+}
+export function reconcileSnapshot(snapshot: Snapshot, words: readonly Word[], now: number): Snapshot {
+  return { ...snapshot, settings: { ...snapshot.settings, daily: buildDailyPlan(words, snapshot.cards, snapshot.settings, now) } };
 }
 
-export type PracticeAction =
-  | { type: 'start'; seed: number }
-  | { type: 'answer'; selectedId: string | null; elapsedMs: number; timestamp: number }
-  | { type: 'details' }
-  | { type: 'next' }
-  | { type: 'slash'; now: number; token: number }
-  | { type: 'undo'; now: number }
-  | { type: 'expireUndo'; token: number };
+export type StudyAction =
+  | { type: 'start' }
+  | { type: 'tick'; startIfReady?: boolean }
+  | { type: 'answer'; presentationId: string; selectedId: string | null; elapsedMs: number }
+  | { type: 'details' | 'next' | 'slash'; presentationId: string }
+  | { type: 'undo'; expiresAt: number };
 
-function questionFor(id: string | undefined, words: readonly Word[], seed: number, pool: readonly Word[] | ChoicePool): Question | null {
-  if (!id) return null;
-  const word = words.find(item => item.id === id);
-  if (!word) throw new Error('The current word is missing from the wordlist.');
-  // Deterministic generation keeps React reducer replays free of random effects.
-  let value = seed >>> 0;
-  const random = () => { value = (Math.imul(value, 1664525) + 1013904223) >>> 0; return value / 4294967296; };
-  // An impossible wordlist stays on this word with an explicit UI error.
-  return { word, options: generateOptions(word, pool, random) ?? [] };
+function chooseCurrent(snapshot: Snapshot, words: readonly Word[], pool: ChoicePool, now: number): Snapshot {
+  const plan = snapshot.settings.daily!;
+  if (plan.current) return snapshot;
+  const ready = readyQueue(snapshot, now);
+  const next = ready.find(item => item.wordId === plan.preferredNextId) ?? ready[0];
+  if (!next) return snapshot;
+  const word = words.find(item => item.id === next.wordId);
+  if (!word) throw new Error('The current word is missing from CET4.');
+  const sequence = plan.sequence + 1;
+  let seed = (now + sequence) >>> 0;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const current: Presentation = { id: `${plan.day}:${sequence}`, wordId: word.id,
+    optionIds: (generateOptions(word, pool, random) ?? []).map(item => item.id), kind: next.kind,
+    reviewNumber: snapshot.cards.find(card => card.wordId === word.id)?.fsrs.reps ?? 0,
+    phase: 'recognise', answer: null, startedAt: now };
+  return withPlan(snapshot, { ...plan, current, sequence, preferredNextId: null });
+}
+function withPlan(snapshot: Snapshot, plan: DailyPlan): Snapshot {
+  return { ...snapshot, settings: { ...snapshot.settings, daily: plan } };
+}
+function putCard(snapshot: Snapshot, card: CardRecord): Snapshot {
+  return { ...snapshot, cards: [...snapshot.cards.filter(item => item.wordId !== card.wordId), card] };
 }
 
-export function practiceReducer(state: PracticeState | null, action: PracticeAction, words: readonly Word[], pool: readonly Word[] | ChoicePool = words): PracticeState | null {
-  if (action.type === 'start') {
-    const slashedIds = state?.slashedIds ?? [];
-    const remainingIds = words.filter(word => !slashedIds.includes(word.id)).map(word => word.id);
-    return {
-      remainingIds, total: remainingIds.length, seed: action.seed,
-      question: questionFor(remainingIds[0], words, action.seed, pool), phase: 'recognise', answer: null,
-      logs: [], failedIds: state?.failedIds ?? [], slashedIds, undo: null,
-    };
-  }
-  if (!state) return state;
-  if (action.type === 'expireUndo') return state.undo?.token === action.token ? { ...state, undo: null } : state;
+export function transitionStudy(input: Snapshot, action: StudyAction, words: readonly Word[], pool: ChoicePool, now: number): Snapshot {
+  let snapshot = reconcileSnapshot(input, words, now);
+  const plan = snapshot.settings.daily!;
+  const current = plan.current;
+  if (action.type === 'start' || (action.type === 'tick' && action.startIfReady)) return chooseCurrent(snapshot, words, pool, now);
+  if (action.type === 'tick') return snapshot;
   if (action.type === 'undo') {
-    if (!state.undo) return state;
-    if (action.now >= state.undo.expiresAt) return { ...state, undo: null };
-    const restoredId = state.undo.wordId;
-    const remainingIds = state.question
-      ? [state.remainingIds[0]!, restoredId, ...state.remainingIds.slice(1)]
-      : [restoredId];
-    return {
-      ...state, remainingIds, slashedIds: state.slashedIds.filter(id => id !== restoredId), undo: null,
-      question: state.question ?? questionFor(restoredId, words, state.seed, pool),
-    };
+    const undo = plan.undo;
+    if (!undo || undo.expiresAt !== action.expiresAt || now >= undo.expiresAt) return snapshot;
+    snapshot = { ...snapshot, cards: snapshot.cards.filter(card => card.wordId !== undo.wordId) };
+    if (undo.previous) snapshot = putCard(snapshot, undo.previous);
+    return chooseCurrent(withPlan(snapshot, { ...plan, undo: null, preferredNextId: undo.wordId,
+      completed: plan.completed - (undo.counted && undo.day === plan.day ? 1 : 0) }), words, pool, now);
   }
-  if (!state.question) return state;
+  // A stale tab or repeated click cannot answer a newer presentation.
+  if (!current || current.id !== action.presentationId) return snapshot;
+  const previous = snapshot.cards.find(card => card.wordId === current.wordId);
   if (action.type === 'answer') {
-    if (state.phase !== 'recognise' || state.question.options.length !== 4) return state;
-    if (action.selectedId !== null && !state.question.options.some(option => option.id === action.selectedId)) return state;
-    const wordId = state.question.word.id;
-    const correct = action.selectedId === wordId;
+    if (current.phase !== 'recognise' || current.optionIds.length !== 4 ||
+      (action.selectedId !== null && !current.optionIds.includes(action.selectedId)) || !Number.isFinite(action.elapsedMs)) return snapshot;
+    const card = previous ?? emptyCard(current.wordId, now);
+    if (card.slashed) return snapshot;
+    const correct = action.selectedId === current.wordId;
     const elapsedMs = Math.max(0, action.elapsedMs);
-    const answer: Answer = {
-      wordId, correct, elapsedMs, selectedId: action.selectedId, answeredAt: action.timestamp,
-      rating: gradeAnswer(correct, elapsedMs, state.failedIds.includes(wordId)),
-    };
-    return {
-      ...state, phase: 'feedback', answer, logs: [...state.logs, answer],
-      failedIds: correct || state.failedIds.includes(wordId) ? state.failedIds : [...state.failedIds, wordId],
-    };
+    const rating = gradeAnswer(correct, elapsedMs, card.everWrong, snapshot.settings.grading);
+    const result = scheduleCard(card, rating, now);
+    const answer: ReviewEntry = { id: current.id, day: plan.day, wordId: current.wordId,
+      kind: current.kind, selectedId: action.selectedId, correct, elapsedMs, answeredAt: now,
+      rating, dueAt: result.card.due.getTime(), fsrsLog: result.log };
+    snapshot = putCard(snapshot, { ...card, fsrs: result.card, everWrong: card.everWrong || !correct, introducedAt: card.introducedAt ?? now });
+    return withPlan({ ...snapshot, logs: [...snapshot.logs, answer] }, { ...plan, completed: plan.completed + 1,
+      current: { ...current, phase: 'feedback', answer } });
   }
-  if (action.type === 'details') return state.phase === 'feedback' ? { ...state, phase: 'details' } : state;
-  if (action.type === 'next' && state.phase !== 'details' &&
-      !(state.phase === 'feedback' && (state.answer?.rating === 'Good' || state.answer?.rating === 'Easy'))) return state;
-  const seed = (state.seed + 1) >>> 0;
-  const remainingIds = state.remainingIds.slice(1);
-  const next: PracticeState = {
-    ...state, seed, remainingIds, question: questionFor(remainingIds[0], words, seed, pool),
-    phase: 'recognise', answer: null,
-  };
-  if (action.type === 'slash') return {
-    ...next, slashedIds: [...state.slashedIds, state.question.word.id],
-    undo: { wordId: state.question.word.id, expiresAt: action.now + 3000, token: action.token },
-  };
-  return next;
+  if (action.type === 'details') return current.phase === 'feedback'
+    ? withPlan(snapshot, { ...plan, current: { ...current, phase: 'details' } }) : snapshot;
+  if (action.type === 'slash') {
+    const card = previous ?? emptyCard(current.wordId, now);
+    snapshot = putCard(snapshot, { ...card, slashed: true, slashedAt: now });
+    return chooseCurrent(withPlan(snapshot, { ...plan, current: null, completed: plan.completed + (current.answer ? 0 : 1),
+      undo: { wordId: current.wordId, previous: previous ?? null, expiresAt: now + 3000, day: plan.day, counted: !current.answer } }), words, pool, now);
+  }
+  if (current.phase !== 'details' && !(current.phase === 'feedback' &&
+    (current.answer?.rating === 'Good' || current.answer?.rating === 'Easy'))) return snapshot;
+  if (current.answer) {
+    const startedAt = current.startedAt ?? current.answer.answeredAt - current.answer.elapsedMs;
+    const studyMs = Math.max(current.answer.elapsedMs, now - startedAt);
+    snapshot = { ...snapshot, logs: snapshot.logs.map(log => log.id === current.id ? { ...log, studyMs } : log) };
+  }
+  return chooseCurrent(withPlan(snapshot, { ...plan, current: null }), words, pool, now);
 }
