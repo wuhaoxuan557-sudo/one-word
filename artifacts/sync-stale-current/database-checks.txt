@@ -1,0 +1,19 @@
+PASS remote answer discards the desktop unanswered question before Start
+PASS Start uses the rebuilt queue without adding another answer for the old word
+PASS Start rechecks an already-saved legacy current question after its remote answer was merged
+PASS an answered feedback question survives same-word remote facts
+PASS an answered details question survives same-word remote facts
+PASS remote slash discards the unanswered question and excludes the slashed word
+PASS unrelated remote facts preserve the unanswered UUID and options through Start
+PASS new same-word bookmark fact invalidates a question even when its timestamp predates issue
+PASS existing Tokyo database rebases day labels and keeps timestamps, UUIDs and local feedback
+PASS existing device timezone metadata becomes Asia/Shanghai
+PASS local answers commit while a mocked GitHub PATCH is held open
+PASS two independent databases discover the same gist and converge through real storage transactions
+PASS one secret gist is created and meta is never patched
+PASS the answer created during upload reaches a device file on the next pass
+PASS enabled sync credentials are excluded from real database backups and shared data
+PASS independent database connections share a real origin-wide sync lock
+PASS IndexedDB lease fallback excludes a second connection and can renew before requests
+PASS no real GitHub request is attempted and successful sync time is persisted
+ALL MOCK GIST CHECKS PASSED

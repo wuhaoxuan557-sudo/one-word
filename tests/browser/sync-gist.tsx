@@ -16,6 +16,7 @@ import { STUDY_TIME_ZONE } from '../../src/core/sync/calendar';
 import { serializeBackup } from '../../src/core/backup';
 import { stableJson } from '../../src/core/sync/identity';
 import '../../src/styles.css';
+import { checkStaleCurrent } from './stale-current';
 
 const now = Date.parse('2026-11-03T15:30:00Z');
 const checks: string[] = []; const open: VocabularyDatabase[] = [];
@@ -29,6 +30,7 @@ async function database(name: string) { let db = new VocabularyDatabase(`one-wor
 async function runTests(report: (text: string) => void) {
   const check = (condition: unknown, label: string) => { if (!condition) throw new Error(label); checks.push(`PASS ${label}`); report(checks.join('\n')); };
   checks.length = 0;
+  await checkStaleCurrent(database, now, check);
   const old = await database('old-timezone'); const shared = state([fact('timezone', devices[0], now)]);
   const oldMaterialized = materializeShared(shared, 'Asia/Tokyo');
   await old.cards.bulkPut(oldMaterialized.cards); await old.reviewLogs.bulkPut(oldMaterialized.logs);

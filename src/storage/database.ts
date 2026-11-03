@@ -97,7 +97,8 @@ export function createStudyStore(words: readonly Word[], db = new VocabularyData
       await prepareResources(action.type === 'preferences' ? { ...settings, ...action.value } : settings, await db.cards.toArray(), action.type !== 'tick' || Boolean(action.startIfReady));
     }
     return db.transaction('rw', tables, async () => {
-      const { snapshot: before, local } = await read(now);
+      const { snapshot: saved, local } = await read(now);
+      const before = action.type === 'start' ? projectSnapshot(saved, snapshotShared(saved), activeWords(saved.settings), now, local.timeZone, true, replayCache) : saved;
       const required = action.type === 'preferences' ? action.value.selectedWordlists : before.settings.selectedWordlists;
       if (catalog && required.some(id => !catalog[id])) throw new Error('词表选择已在其他页面更改，请重新加载。');
       const management = action.type === 'preferences' || action.type === 'bookmark' || action.type === 'unslash' || action.type === 'exported';

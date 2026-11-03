@@ -5,6 +5,7 @@ import { advanceClock } from './clock';
 import { stableJson } from './identity';
 import { PROFILE_ID, preferenceKeys } from './model';
 import type { LocalSyncState, SyncEvent } from './model';
+import { currentFactsVersion } from './current';
 
 export function recordMutation(before: Snapshot, after: Snapshot, action: StudyAction | ManagementAction, local: LocalSyncState, now: number, newId: () => string): { snapshot: Snapshot; local: LocalSyncState } {
   let clock = local.clock;
@@ -39,7 +40,10 @@ export function recordMutation(before: Snapshot, after: Snapshot, action: StudyA
   }
   const answer = after.settings.daily?.current?.answer;
   const plan = after.settings.daily;
-  const snapshot = { ...after, logs, events, settings: answer && plan ? { ...after.settings,
+  let snapshot = { ...after, logs, events, settings: answer && plan ? { ...after.settings,
     daily: { ...plan, current: { ...plan.current!, answer: logs.find(log => log.id === answer.id)! } } } : after.settings };
+  const issued = snapshot.settings.daily?.current;
+  if (issued && !issued.answer && issued.id !== current?.id) snapshot = { ...snapshot, settings: { ...snapshot.settings,
+    daily: { ...snapshot.settings.daily!, current: { ...issued, factsVersion: currentFactsVersion(issued.wordId, logs, events) } } } };
   return { snapshot, local: { ...local, clock } };
 }

@@ -7,6 +7,7 @@ import { emptyCard, scheduleCard } from './scheduler';
 import { snapshotWord } from './wordSnapshot';
 import { isUuid } from './sync/identity';
 import { STUDY_TIME_ZONE } from './sync/calendar';
+import { currentFactsVersion } from './sync/current';
 
 export function defaultSettings(now: number): AppSettings {
   return { id: 'app', newLimit: 20, reviewLimit: 200, grading: { ...GRADING_CONFIG }, autoSpeak: true,
@@ -48,7 +49,8 @@ function chooseCurrent(snapshot: Snapshot, words: readonly Word[], pool: ChoiceP
   const current: Presentation = { id: nextId, wordId: word.id,
     optionIds: (generateOptions(word, pool, random) ?? []).map(item => item.id), kind: next.kind,
     reviewNumber: snapshot.cards.find(card => card.wordId === word.id)?.fsrs.reps ?? 0,
-    phase: 'recognise', answer: null, startedAt: now };
+    phase: 'recognise', answer: null, startedAt: now,
+    factsVersion: currentFactsVersion(word.id, snapshot.logs, snapshot.events ?? []) };
   return withPlan(snapshot, { ...plan, current, sequence, preferredNextId: null });
 }
 function withPlan(snapshot: Snapshot, plan: DailyPlan): Snapshot {

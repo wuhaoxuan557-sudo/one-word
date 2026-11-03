@@ -55,3 +55,8 @@ it('roundtrips version 2 events and strips unknown credential fields at every ex
   expect(JSON.parse(backup).version).toBe(2);
   expect(new Set(parseBackup(backup).events)).toEqual(new Set(snapshot.events));
 });
+it('preserves the device-local current question fact baseline in backups', () => {
+  const restored = parseBackup(serializeBackup(saved, now));
+  expect(restored.settings.daily?.current?.factsVersion).toBe(saved.settings.daily?.current?.factsVersion);
+  expect(restored.settings.daily?.current?.factsVersion).toBeDefined();
+});

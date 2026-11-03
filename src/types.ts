@@ -68,6 +68,7 @@ export interface Presentation {
   answer: ReviewEntry | null;
   startedAt?: number;
   pinned?: boolean;
+  factsVersion?: string;
 }
 export interface DailyPlan {
   day: string;

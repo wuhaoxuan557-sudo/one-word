@@ -80,8 +80,8 @@ async function run() {
   const sa = await device('slash-A'), sb = await device('slash-B');
   const saStart = await sa.transact({ type: 'start' }, now), sbStart = await sb.transact({ type: 'start' }, now);
   const slashed = await sa.transact({ type: 'slash', presentationId: current(saStart).id }, now + 1000);
+  await sb.transact({ type: 'answer', presentationId: current(sbStart).id, selectedId: 'apple', elapsedMs: 1000 }, now + 1100);
   await send(sa, sb, now + 1200);
-  await sb.transact({ type: 'answer', presentationId: current(sbStart).id, selectedId: 'apple', elapsedMs: 1000 }, now + 1500);
   await send(sb, sa, now + 2000);
   const undone = await sa.transact({ type: 'undo', expiresAt: slashed.settings.daily!.undo!.expiresAt }, now + 2200);
   await send(sa, sb, now + 2300);

@@ -105,6 +105,7 @@ export function parseBackup(text: string, knownIds?: ReadonlySet<string>): Snaps
       kind: choice(item.kind, ['new', 'review']), reviewNumber: integer(item.reviewNumber),
       phase: choice(item.phase, ['recognise', 'feedback', 'details']), answer: item.answer === null ? null : review(item.answer),
       ...(item.pinned === undefined ? {} : { pinned: bool(item.pinned) }),
+      ...(item.factsVersion === undefined ? {} : { factsVersion: uuid(item.factsVersion) }),
       ...(item.startedAt === undefined ? {} : { startedAt: timestamp(item.startedAt) }) };
     if (![0, 4].includes(result.optionIds.length) || (result.optionIds.length === 4 && !result.optionIds.includes(result.wordId)) ||
       (result.phase === 'recognise') !== (result.answer === null)) fail();
