@@ -1,6 +1,6 @@
 import type { ReviewEntry, Snapshot } from '../../types';
 import { preferences } from '../preferences';
-import { calendarDay } from './calendar';
+import { calendarDay, STUDY_TIME_ZONE } from './calendar';
 import { isUuid, stableJson, uuid5 } from './identity';
 import { LEGACY_DEVICE, PROFILE_ID, preferenceKeys } from './model';
 import type { ReviewFact, SharedState, SyncEvent } from './model';
@@ -19,12 +19,15 @@ export function snapshotShared(snapshot: Snapshot): SharedState {
   return parseShared({ version: 1, profileId: PROFILE_ID, reviews: snapshot.logs.map(reviewFact), events: snapshot.events ?? [] });
 }
 export function migrateSnapshot(input: Snapshot, nextPresentationId: string): Snapshot {
-  const logs = input.logs.map(log => ({ ...log, id: reviewIdentity(log), deviceId: log.deviceId ?? LEGACY_DEVICE,
+  const logs = input.logs.map(log => ({ ...log, day: calendarDay(log.answeredAt), id: reviewIdentity(log), deviceId: log.deviceId ?? LEGACY_DEVICE,
     profileId: log.profileId ?? PROFILE_ID, syncClock: log.syncClock ?? [log.answeredAt, 0] as const }));
   const plan = input.settings.daily; const current = plan?.current;
   const migratedCurrent = current ? { ...current, id: current.answer ? reviewIdentity(current.answer) : isUuid(current.id) ? current.id : nextPresentationId,
     answer: current.answer ? logs.find(log => log.id === reviewIdentity(current.answer!))! : null } : null;
-  const settings = { ...input.settings, ...(plan ? { daily: { ...plan, current: migratedCurrent } } : {}) };
+  const issuedAt = current?.startedAt ?? current?.answer?.answeredAt;
+  const settings = { ...input.settings, syncTimeZone: STUDY_TIME_ZONE, ...(plan ? { daily: { ...plan,
+    day: issuedAt === undefined ? plan.day : calendarDay(issuedAt), current: migratedCurrent,
+    undo: plan.undo ? { ...plan.undo, day: calendarDay(Math.max(0, plan.undo.expiresAt - 3000)) } : null } } : {}) };
   const counts = new Map<string, number>();
   for (const log of logs) counts.set(log.wordId, (counts.get(log.wordId) ?? 0) + 1);
   for (const card of input.cards) {

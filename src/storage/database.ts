@@ -17,11 +17,11 @@ import type { ReplayCache } from '../core/sync/merge';
 import { projectSnapshot } from '../core/sync/project';
 import { recordMutation } from '../core/sync/mutations';
 import { stableJson } from '../core/sync/identity';
-import { validateTimeZone } from '../core/sync/calendar';
+import { STUDY_TIME_ZONE } from '../core/sync/calendar';
 import type { Clock, LocalSyncState, SharedState, SyncEvent } from '../core/sync/model';
 
-function freshLocal(timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone): LocalSyncState {
-  return { id: 'sync-local', version: 1, deviceId: crypto.randomUUID(), clock: [0, 0], timeZone: validateTimeZone(timeZone) };
+function freshLocal(): LocalSyncState {
+  return { id: 'sync-local', version: 1, deviceId: crypto.randomUUID(), clock: [0, 0], timeZone: STUDY_TIME_ZONE };
 }
 function observedClock(local: Clock, shared: SharedState): Clock {
   return [...shared.events, ...shared.reviews].reduce<Clock>((clock, value) => value.clock[0] > clock[0] ||
@@ -68,7 +68,7 @@ export function createStudyStore(words: readonly Word[], db = new VocabularyData
   const tables = [db.cards, db.reviewLogs, db.settings, db.syncEvents];
   const read = async (now: number) => {
     const savedLocal = await db.localSettings.get('sync-local');
-    const local = savedLocal ?? freshLocal();
+    const local = { ...savedLocal ?? freshLocal(), timeZone: STUDY_TIME_ZONE, ...(savedLocal?.boundTimeZone ? { boundTimeZone: STUDY_TIME_ZONE } : {}) };
     const snapshot: Snapshot = fillSnapshots({ settings: { ...normaliseSettings(await db.settings.get('app') ?? defaultSettings(now)), syncTimeZone: local.timeZone },
       cards: await db.cards.toArray(), logs: await db.reviewLogs.toArray(), ...(savedLocal ? { events: await db.syncEvents.toArray() } : {}) });
     const migrated = migrateSnapshot(snapshot, crypto.randomUUID());
@@ -121,18 +121,17 @@ export function createStudyStore(words: readonly Word[], db = new VocabularyData
   };
   const mergeIncoming = async (value: unknown, now = Date.now(), timeZone?: string): Promise<Snapshot> => {
     const incoming = parseShared(value);
-    if (timeZone) validateTimeZone(timeZone);
+    if (timeZone && timeZone !== STUDY_TIME_ZONE) throw new Error('同步库必须使用北京时间，现有数据未修改。');
     if (loader) {
       const { snapshot: local } = await db.transaction('r', tables, () => read(now));
       const combined = mergeShared(snapshotShared(local), incoming);
-      const desired = materializeShared(combined, timeZone ?? local.settings.syncTimeZone, replayCache).preferences;
+      const desired = materializeShared(combined, STUDY_TIME_ZONE, replayCache).preferences;
       await prepareResources({ ...local.settings, ...desired }, local.cards, true);
     }
     return db.transaction('rw', tables, async () => {
       const { snapshot: before, local } = await read(now);
-      if (timeZone && local.boundTimeZone && timeZone !== local.boundTimeZone) throw new Error('同步库计日时区已经固定，现有数据未修改。');
       const shared = mergeShared(snapshotShared(before), incoming);
-      const zone = timeZone ?? local.timeZone;
+      const zone = STUDY_TIME_ZONE;
       const desired = materializeShared(shared, zone, replayCache).preferences;
       const settings = { ...before.settings, ...desired };
       if (catalog && settings.selectedWordlists.some(id => !catalog[id])) throw new Error('所选词表尚未准备好，现有数据未修改。');

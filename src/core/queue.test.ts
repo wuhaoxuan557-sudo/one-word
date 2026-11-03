@@ -89,8 +89,8 @@ it('retains daily reservations on reload and replenishes them only on a new day'
   expect(dailyQueue(reload, now)).toEqual([]);
   expect(reconcileSnapshot(reload, words, nextMidnight(now)).settings.daily?.newIds).toEqual(['chair', 'river']);
 });
-it('uses the local calendar day and the next local midnight', () => {
-  const late = new Date(2026, 10, 2, 23, 59, 59, 999).getTime();
+it('uses Beijing calendar days and midnight regardless of the system timezone', () => {
+  const late = Date.parse('2026-11-02T23:59:59.999+08:00');
   expect(localDay(late)).toBe('2026-11-02'); expect(localDay(late + 1)).toBe('2026-11-03');
   expect(nextMidnight(late)).toBe(late + 1);
 });

@@ -27,16 +27,17 @@ it('counts repetitions but uses only each word first answer per day for weighted
   expect(result).toMatchObject({ learned: 3, slashed: 1, bookmarked: 1 });
 });
 it('handles midnight and month boundaries with no dependence on stored timezone day labels', () => {
-  const midnight = new Date(2026, 10, 1).getTime(); const input = freshSnapshot();
+  const midnight = Date.parse('2026-11-01T00:00:00+08:00'); const input = freshSnapshot();
   input.logs = [log('before', 'apple', midnight - 1, true), log('after', 'apple', midnight, false)];
   const result = statistics(input, midnight + 1);
   expect(result.days[28]).toMatchObject({ day: '2026-10-31', reviews: 1, accuracy: 1 });
   expect(result.days[29]).toMatchObject({ day: '2026-11-01', reviews: 1, accuracy: 0 });
 });
-it('calculates days and first-answer accuracy using the dataset timezone', () => {
+it('recalculates old timezone day labels in Beijing time without changing timestamps', () => {
   const snapshot = freshSnapshot(); snapshot.settings.syncTimeZone = 'Asia/Tokyo';
   const at = Date.parse('2026-11-03T15:00:00Z');
   snapshot.logs = [log('a', 'apple', at - 1, true), log('b', 'apple', at, false)];
   const result = statistics(snapshot, at);
-  expect(result.days.at(-1)).toMatchObject({ day: '2026-11-04', reviews: 1, firstCount: 1, accuracy: 0 });
+  expect(result.days.at(-1)).toMatchObject({ day: '2026-11-03', reviews: 2, firstCount: 1, accuracy: 1 });
+  expect(snapshot.logs.map(log => log.answeredAt)).toEqual([at - 1, at]);
 });

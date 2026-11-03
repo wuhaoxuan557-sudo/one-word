@@ -178,6 +178,13 @@ p, h1, h2 { margin: 0; }
 .data-row svg { width: 20px; height: 20px; }
 .data-row > span { flex: 1; }
 .data-row small { font-size: 13px; color: var(--ink-2); }
+.sync-group > * + * { border-top: 1px solid var(--line-soft); }
+.sync-token { flex-wrap: wrap; gap: 8px; padding: 16px; }
+.sync-token input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; font-size: 14px; }
+.sync-token input::placeholder { color: var(--ink-2); }
+.sync-info { padding-right: 16px; gap: 12px; font-size: 13px; }
+.sync-info small { color: var(--ink-2); text-align: right; }
+.sync-status { padding: 16px; font-size: 13px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
 .file-input { display: none; }
 .import-warning { color: var(--wrong-fg); }
 .stats-main { padding-inline: 24px; gap: 28px; }

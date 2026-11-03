@@ -107,15 +107,36 @@ python scripts/build_wordlist.py --csv 'path/to/ecdict.csv' --out 'public/wordli
 
 一次作答在同一 Dexie 事务中写入卡片、日志和恢复状态；提交成功后才显示反馈。写入失败会回滚并提示重试，重复点击或其他标签页的旧作答不会多记一次。启动时尝试 `navigator.storage.persist()`，浏览器是否批准由其决定。
 
-数据属于**同一浏览器、同一站点地址**：localhost、局域网 IP、不同端口以及手机浏览器各有自己的存储。目前只完成同步第一轮本地基础，尚无 Gist 客户端或同步设置入口，不会自动联网同步。可以导出后在另一设备合并导入；关闭标签页不会清空数据，清除站点数据或关闭隐私窗口仍可能丢失。
+数据属于**同一浏览器、同一站点地址**：localhost、局域网 IP、不同端口以及手机浏览器各有自己的存储。默认只使用本地数据；可在设置页主动开启 GitHub Gist 同步，或导出后在另一设备合并导入。关闭标签页不会清空数据，清除站点数据或关闭隐私窗口仍可能丢失。
 
 新作答使用 UUIDv4；旧“日期:序号”作答确定性迁移为 UUIDv5，同一旧备份重复导入只计一次。合并按日志/操作 UUID 并集及字段 HLC 版本进行，冲突词按固定 ts-fsrs 5.4.2 配置与时间/UUID 顺序重放，不重新评分。三秒撤销是补偿操作，不会覆盖新合并的作答。当前题和预约只在本机保留。
 
-同步库计日时区固定，首次加入时绑定，额度及统计从合并事实重新计算。两台设备离线期间已经发生的超额学习仍保留，合并后不再追加额度；不能同时保证自由离线与严格共享上限。旧数据没有记录的取消时间无法补推；如果卡片的作答历史缺失，迁移安全拒绝，不重置数据。
+整个 App 固定按北京时间（Asia/Shanghai）计日，开没开同步都一样，不受设备系统时区影响。旧库的日期字段会从原始作答时间重新计算，时间戳不变。额度及统计从合并事实重算。两台设备离线期间已经发生的超额学习仍保留，合并后不再追加额度；不能同时保证自由离线与严格共享上限。旧数据没有记录的取消时间无法补推；如果卡片的作答历史缺失，迁移安全拒绝，不重置数据。
 
-紧凑格式使用 JSON 数组，一个 secret gist、按设备 UUID 和月份命名文件，整文件超过 512 KiB 才追加月内序号。当前仅有本地编解码器，实际 Gist 读写、meta 文件、令牌及设置页留第二轮。验收及实测字节数见 `QA-SYNC-LOCAL.md`。
+紧凑格式使用 JSON 数组，一个 secret gist、按设备 UUID 和发布月份命名文件，整文件超过 512 KiB 才追加月内序号。每台设备只写自己的当前月文件，旧历史导入和跨月补录也放入当前月，原始时间与来源保留。遇到截断、重复同步库或不兼容格式会停止，保留本地数据。第一轮实测字节数见 `QA-SYNC-LOCAL.md`，第二轮模拟验收见 `QA-SYNC-GIST.md`。
 
 干扰项先查同词性、相近词频（范围 `max(1000, 当前排名 × 0.75)`），再放宽为同词性不限词频，最后不限词性。每一级都排除重复词，并按选项实际使用的缩短文本检查与正确项、其他干扰项的重叠；显示与检查共用格式化函数，不使用隐藏的后续释义。使用候选组合搜索避免贪心误判。该规则是文字启发式，不能保证识别所有语义近义词。若输入词表本身不足四个可区分释义，停留在原词并显示数据问题，不自动跳词、不伪造选项。
+
+## 开启手机与电脑同步
+
+同步默认关闭。所有学习操作仍先写本机；联网启动、回首页、恢复联网和“立即同步”会在后台同步，学习界面不弹同步错误。故障及上次成功时间只在设置页查看；网络中断与限流会退避重试。各设备固定使用北京时间。
+
+先在 GitHub 网页进入 **头像 → Settings → Developer settings → Personal access tokens**，创建以下任一种令牌，建议设置过期时间：
+
+- **Tokens (classic) → Generate new token (classic)**：只勾选 `gist`，不需要 repo、workflow 等权限。
+- **Fine-grained tokens → Generate new token**：Resource owner 选自己的账号，在 **Account permissions → Gists** 设为 **Read and write**（API 权限名为 Gists: write）；不需要仓库读写权限。GitHub 官方列明 Gist 创建和更新支持这一权限。参见[创建令牌](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)及[Gist API 权限](https://docs.github.com/en/rest/gists/gists#create-a-gist)。
+
+令牌只保存在输入它的浏览器 IndexedDB 中，以密码框显示；不会进入 JSON 备份、共享文件、日志或 URL。只有开启同步后，才通过 Authorization 头发给 api.github.com。学习数据在 secret gist 中明文保存；secret 表示不公开列出，知道链接的人仍可能查看。建议保留定期 JSON 备份。
+
+1. **第一台设备**：打开设置 → 同步，开启开关，粘贴令牌。可点“测试连接”（只验证读取，尚不能证明写权限），再点“立即同步”。首次会自动创建一个 secret gist；等状态显示“同步成功”。
+2. **第二台设备**：打开同一个 App，开启同步，填入同一令牌，点“立即同步”。它会按应用标记找到第一台的 gist，上传本机尚未发布的事实并合并已有历史。已有本机数据会保留，当前题和预约属于各设备自己。
+3. 回到首页刷新真实数量后即可继续学习。令牌到期时在两端更新；关闭同步会取消在途请求，保留本机学习数据与已绑定库。
+
+首次请先完成第一台，再开启第二台，避免两端同时创建重复库。若发现多个有效同步库、文件截断、格式不兼容、已绑定库消失或无权限，会停止并在设置页说明，不会自动另建替代库或清空数据。先保留 JSON 备份，再在 GitHub 网页处理重复库或权限。API 顶层文件清单超过 GitHub 返回限制时也会停止；不会跟随 raw_url 到其他域名。
+
+仅支持这个 App 使用的 Gist 文件格式，不要手动修改 meta。每个设备只写自己的当前月文件；旧月份保留，补录旧历史时写入当前月，作答时间本身保持原样。两个设备都离线时无法预先协调共享额度，已经发生的学习保留，同步后重新计算剩余额度。
+
+本轮用模拟 API 验证，未提供真实令牌、未向真实 GitHub Gist 发请求。自行验收时可在两端各完成一张卡后同步，刷新并检查历史与数量；再测试关闭同步、离线学习及恢复联网。记录见 `QA-SYNC-GIST.md`。
 
 ## 资源与发音
 
@@ -153,6 +174,8 @@ git push -u origin main
 在 GitHub 仓库 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。若首次推送时尚未启用 Pages，在 Actions 中打开 **Deploy GitHub Pages**，选择 **Re-run all jobs** 或 **Run workflow → main**。若仓库禁用了 Actions，先在 **Settings → Actions → General** 允许该 workflow 使用的 actions。部署使用 github-pages environment，仅允许 main 部署；若自行加了审批规则，需要在 Actions 批准部署。
 
 Workflow 从 package.json 的 packageManager 读取 pnpm 版本，依次执行 frozen install、测试和构建，再用官方 Pages artifact/deploy actions 发布。成功后打开 `https://wuhaoxuan557-sudo.github.io/one-word/`。后续 push main 自动重复此流程。配置依据：[GitHub Pages 官方文档](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
+
+Pages Actions 已按官方 release 升级为支持 Node 24 的最新主版本：configure-pages@v6、upload-pages-artifact@v5、deploy-pages@v5。依据：[configure-pages v6.0.0](https://github.com/actions/configure-pages/releases/tag/v6.0.0)、[upload-pages-artifact v5.0.0](https://github.com/actions/upload-pages-artifact/releases/tag/v5.0.0)（内部使用 upload-artifact v7）、[deploy-pages v5.0.0](https://github.com/actions/deploy-pages/releases/tag/v5.0.0)（当前 v5 系列 release 已到 v5.0.1）。
 
 iPhone 上用 Safari 打开上面的 HTTPS 地址，等待首页加载，选择要学习的词表并保存；点分享按钮 →“添加到主屏幕”→ 确认名称“一词”→“添加”。然后从主屏幕图标打开。支持的 iOS 版本中可保留“作为 Web App 打开”选项。安装后的安全区使用 black-translucent 状态栏及 viewport-fit=cover；真实 iPhone 的系统栏仍需实机检查。
 

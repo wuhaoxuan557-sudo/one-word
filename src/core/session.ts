@@ -6,13 +6,14 @@ import { GRADING_CONFIG, gradeAnswer } from './rating';
 import { emptyCard, scheduleCard } from './scheduler';
 import { snapshotWord } from './wordSnapshot';
 import { isUuid } from './sync/identity';
+import { STUDY_TIME_ZONE } from './sync/calendar';
 
 export function defaultSettings(now: number): AppSettings {
   return { id: 'app', newLimit: 20, reviewLimit: 200, grading: { ...GRADING_CONFIG }, autoSpeak: true,
-    accent: 'en-GB', createdAt: now, lastExportAt: null, daily: null, selectedWordlists: ['cet4'] };
+    accent: 'en-GB', createdAt: now, lastExportAt: null, daily: null, selectedWordlists: ['cet4'], syncTimeZone: STUDY_TIME_ZONE };
 }
 export function reconcileSnapshot(snapshot: Snapshot, words: readonly Word[], now: number): Snapshot {
-  let settings = snapshot.settings;
+  let settings = { ...snapshot.settings, syncTimeZone: STUDY_TIME_ZONE };
   const plan = settings.daily;
   const current = plan?.current;
   if (plan && current && !current.answer && !current.pinned && !words.some(word => word.id === current.wordId)) {

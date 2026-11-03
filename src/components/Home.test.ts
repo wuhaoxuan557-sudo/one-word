@@ -22,9 +22,9 @@ it('renders an update prompt as a deliberate home-page action', () => {
   expect(html).toContain('有新版本 · 点击更新');
 });
 
-it('labels today using the bound sync timezone rather than the display device timezone', () => {
+it('labels today using Beijing time even when old settings contain another timezone', () => {
   const snapshot = freshSnapshot(); snapshot.settings.syncTimeZone = 'Asia/Tokyo';
   const html = renderToStaticMarkup(createElement(Home, { snapshot, words, now: Date.parse('2026-11-03T15:00:00Z'), busy: false,
     onStart: () => {}, onWordlists: () => {}, onWordbook: () => {}, onExport: () => {} }));
-  expect(html).toContain('11月4日');
+  expect(html).toContain('11月3日');
 });

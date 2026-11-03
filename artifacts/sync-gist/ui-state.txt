@@ -1,0 +1,3 @@
+Browser tab: 3, Title: "模拟 Gist 同步验收", URL: "http://127.0.0.1:5193/one-word/tests/browser/sync-gist.html".
+There has been no change in the accessibility tree.
+The focused UI element is 0 AXWebArea 模拟 Gist 同步验收, URL: 127.0.0.1:5193/one-word/tests/browser/sync-gist.html

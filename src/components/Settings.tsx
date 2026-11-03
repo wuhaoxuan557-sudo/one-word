@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import type { ReactNode } from 'react';
 import type { AppSettings, Preferences } from '../types';
 import { preferences } from '../core/preferences';
 
@@ -9,9 +10,10 @@ function Stepper({ value, onChange, minus, plus, label, disabled, min, max, step
   return <div className="stepper"><button aria-label={minus} disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - step))}>−</button>
     <output aria-label={label}>{format ? format(value) : value}</output><button aria-label={plus} disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + step))}>+</button></div>;
 }
-export function Settings({ settings, now, busy, onChange, onExport, onImport }: {
+export function Settings({ settings, now, busy, onChange, onExport, onImport, sync }: {
   settings: AppSettings; now: number; busy: boolean; onChange: (value: Preferences) => void;
   onExport: () => void; onImport: (file: File) => void;
+  sync?: ReactNode;
 }) {
   const file = useRef<HTMLInputElement>(null);
   const patch = (value: Partial<Preferences>) => onChange({ ...preferences(settings), ...value });
@@ -32,6 +34,7 @@ export function Settings({ settings, now, busy, onChange, onExport, onImport }: 
       <div className="settings-row"><span className="setting-description">慢速答对<small>记为 Hard</small></span><Stepper label="慢速阈值" value={settings.grading.hardMs} min={settings.grading.easyMs + 500} max={600000} step={500} disabled={busy}
         minus="缩短慢速阈值" plus="延长慢速阈值" format={value => `> ${(value / 1000).toFixed(1)} 秒`} onChange={hardMs => patch({ grading: { ...settings.grading, hardMs } })} /></div>
     </div><p className="page-note">介于两者之间记为 Good；选错或点“不认识”记为 Again</p></section>
+    {sync}
     <section className="settings-section"><h2>数据</h2><div className="settings-group">
       <button className="data-row" disabled={busy} onClick={onExport}><BackupIcon /><span>导出备份</span><small>{backupDays === null ? '尚未备份' : backupDays === 0 ? '上次 今天' : `上次 ${backupDays} 天前`}</small></button>
       <button className="data-row" disabled={busy} onClick={() => file.current?.click()}><BackupIcon upload /><span>导入备份</span></button>

@@ -1,5 +1,5 @@
 import type { Preferences } from '../../types';
-import { calendarDay, validateTimeZone } from './calendar';
+import { validateTimeZone } from './calendar';
 import { integer, list, parseEvent, parseShared, record, text, timestamp, uuid } from './merge';
 import { PROFILE_ID, preferenceKeys } from './model';
 import type { SharedState, SyncEvent } from './model';
@@ -37,8 +37,8 @@ export function encodeDeviceMonth(input: SharedState, deviceId: string, month: s
     if (bytes + size > DEVICE_FILE_LIMIT) throw new Error('单条同步记录超过 512 KiB，已停止编码。');
     bytes += size + Number(payload[kind].length > 0); payload[kind].push(value);
   };
-  for (const log of state.reviews) if (calendarDay(log.answeredAt, timeZone).startsWith(month)) append('r', compactReview(log, deviceId));
-  for (const event of state.events) if (event.at === 0 || calendarDay(event.at, timeZone).startsWith(month)) append('e', compactEvent(event, deviceId));
+  for (const log of state.reviews) append('r', compactReview(log, deviceId));
+  for (const event of state.events) append('e', compactEvent(event, deviceId));
   if (payload.r.length + payload.e.length || !files.length) flush();
   return files;
 }
@@ -51,7 +51,7 @@ export function decodeDeviceFile(content: string, expectedDevice?: string, expec
   const reviews = list(v.r).map(value => {
     const r = list(value); if (r.length !== 9 && r.length !== 10) throw new Error('同步作答数组长度不正确。');
     const answeredAt = timestamp(r[2]);
-    if (calendarDay(answeredAt, timeZone).slice(0, 7) !== month || typeof r[4] !== 'number' || !Number.isInteger(r[4])) throw new Error('同步作答月份或评分不正确。');
+    if (typeof r[4] !== 'number' || !Number.isInteger(r[4])) throw new Error('同步作答评分不正确。');
     const rating = ratings[r[4]];
     return { id: r[0], wordId: r[1], answeredAt, selectedId: r[3], rating, correct: r[1] === r[3], elapsedMs: r[5],
       ...(r[6] === null ? {} : { studyMs: r[6] }), clock: [answeredAt + integer(r[7]), r[8]], deviceId: r[9] ?? deviceId, profileId: PROFILE_ID };
@@ -60,7 +60,6 @@ export function decodeDeviceFile(content: string, expectedDevice?: string, expec
     const e = list(value); if (e.length !== 7 && e.length !== 8) throw new Error('同步事件数组长度不正确。');
     if (typeof e[1] !== 'number' || !Number.isInteger(e[1])) throw new Error('同步事件类型不正确。');
     const type = types[e[1]]; const at = timestamp(e[2]);
-    if (at !== 0 && calendarDay(at, timeZone).slice(0, 7) !== month) throw new Error('同步事件月份不正确。');
     const base = { id: e[0], type, at, clock: [at + integer(e[3]), e[4]], deviceId: e[7] ?? deviceId };
     const bit = (value: unknown) => { if (value !== 0 && value !== 1) throw new Error('同步布尔值不正确。'); return value === 1; };
     if (type === 'preference') {

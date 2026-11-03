@@ -22,6 +22,11 @@ import { Wordlists } from './components/Wordlists';
 import { ImportConfirmation } from './components/ImportConfirmation';
 import { applyPwaUpdate, fetchOfflineResource, prefetchWordlists, usePwaUpdate } from './pwa';
 import { DetailContent, DetailFooter, FeedbackFooter, QuizCard, StudyHeader, UndoToast } from './components/Study';
+import { SyncSettings } from './components/SyncSettings';
+import { createSyncStorage, defaultSyncConfig } from './storage/sync';
+import { createSyncController } from './core/sync/controller';
+import type { SyncController, SyncView } from './core/sync/controller';
+import { calendarDay } from './core/sync/calendar';
 
 export default function App() {
   const updateAvailable = usePwaUpdate();
@@ -39,6 +44,10 @@ export default function App() {
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
   const [pendingImport, setPendingImport] = useState<{ text: string; name: string; cards: number; logs: number } | null>(null);
   const [speechNotice, setSpeechNotice] = useState('');
+  const [syncView, setSyncView] = useState<SyncView>({ ...defaultSyncConfig(), busy: false });
+  const sync = useRef<SyncController | null>(null);
+  const refreshAfterSync = useRef<() => void>(() => {});
+  const syncRefreshPending = useRef(false);
   const store = useRef<StudyStore | null>(null);
   const loader = useRef<WordlistLoader | null>(null);
   const locked = useRef(false);
@@ -58,6 +67,9 @@ export default function App() {
 
   useEffect(() => {
     mounted.current = true;
+    let controllerDisposed = false;
+    const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('one-word-sync-status');
+    if (channel) channel.onmessage = event => { void sync.current?.refresh().catch(() => {}); if (event.data === 'merged') refreshAfterSync.current(); };
     const controller = new AbortController();
     const source = createWordlistLoader(url => fetchOfflineResource(url, controller.signal));
     const opened = createStudyStore([], undefined, source.catalog, source);
@@ -66,11 +78,19 @@ export default function App() {
     opened.load().then(saved => {
         if (controller.signal.aborted) { opened.db.close(); return; }
         store.current = opened; setCatalog({ ...source.catalog }); setSnapshot(saved); setNow(Date.now());
+        const syncController = createSyncController(opened, createSyncStorage(opened.db), {
+          fetch: (url, init) => fetch(url, init), online: () => navigator.onLine,
+          onChange: view => { if (!controllerDisposed) setSyncView(view); }, onMerge: () => { refreshAfterSync.current(); channel?.postMessage('merged'); },
+          onPersist: () => channel?.postMessage('changed'),
+        });
+        sync.current = syncController; void syncController.start().catch(() => {});
       })
       .catch((reason: unknown) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '无法打开本地学习数据。'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     void navigator.storage?.persist?.().catch(() => false);
-    return () => { mounted.current = false; controller.abort(); opened.db.close(); store.current = null; loader.current = null; cancelSpeech(); };
+    const online = () => sync.current?.trigger(); window.addEventListener('online', online);
+    const focus = () => { void sync.current?.refresh().catch(() => {}); }; window.addEventListener('focus', focus);
+    return () => { controllerDisposed = true; mounted.current = false; sync.current?.dispose(); sync.current = null; channel?.close(); window.removeEventListener('online', online); window.removeEventListener('focus', focus); controller.abort(); opened.db.close(); store.current = null; loader.current = null; cancelSpeech(); };
   }, [retry]);
 
   const run = useCallback(async (action: AppAction) => {
@@ -88,8 +108,13 @@ export default function App() {
         else setError(`学习进度未保存，请重试：${message}`);
       }
       return null;
-    } finally { locked.current = false; if (mounted.current) setBusy(false); }
+    } finally { locked.current = false; if (mounted.current) setBusy(false); if (syncRefreshPending.current) { syncRefreshPending.current = false; refreshAfterSync.current(); } }
   }, []);
+  refreshAfterSync.current = () => {
+    if (locked.current) { syncRefreshPending.current = true; return; }
+    void run({ type: 'tick' });
+  };
+  useEffect(() => { if (!loading && !active && page === 'home') sync.current?.trigger(); }, [loading, active, page]);
 
   useEffect(() => {
     if (!import.meta.env.PROD || !snapshot) return;
@@ -105,7 +130,7 @@ export default function App() {
     try {
       const saved = await store.current.load(); const time = Date.now();
       const url = URL.createObjectURL(new Blob([serializeBackup(saved, time)], { type: 'application/json' }));
-      const link = document.createElement('a'); link.href = url; link.download = `one-word-${new Date(time).toISOString().slice(0, 10)}.json`;
+      const link = document.createElement('a'); link.href = url; link.download = `one-word-${calendarDay(time)}.json`;
       link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setSnapshot(await store.current.transact({ type: 'exported', at: time }, time)); setNow(time);
       setNotice({ text: '备份已生成，请保留下载的 JSON 文件。', error: false });
@@ -227,7 +252,9 @@ export default function App() {
           : page === 'wordbook' ? <Wordbook snapshot={snapshot} tab={wordbookTab} onTab={setWordbookTab} busy={busy}
             onRemove={(wordId, tab) => { void run(tab === 'slashed' ? { type: 'unslash', wordId } : { type: 'bookmark', wordId, value: false }); }} />
           : page === 'stats' ? <Stats snapshot={snapshot} now={now} />
-          : page === 'settings' ? <Settings settings={snapshot.settings} now={now} busy={busy} onChange={value => { void run({ type: 'preferences', value }); }} onExport={() => void exportData()} onImport={file => void readImport(file)} />
+          : page === 'settings' ? <Settings settings={snapshot.settings} now={now} busy={busy} onChange={value => { void run({ type: 'preferences', value }); }} onExport={() => void exportData()} onImport={file => void readImport(file)}
+            sync={<SyncSettings view={syncView} onEnabled={async enabled => { await sync.current?.configure({ enabled }); }} onToken={async token => { await sync.current?.configure({ token }); }}
+              onTest={async () => { await sync.current?.test(); }} onSync={async () => { await sync.current?.sync(); }} />} />
           : <Wordlists selected={snapshot.settings.selectedWordlists} index={wordlistIndex} busy={busy} onBack={exit} onSave={ids => { void run({ type: 'preferences', value: { ...preferences(snapshot.settings), selectedWordlists: ids } }).then(saved => { if (saved) navigate('home'); }); }} />}
         {page !== 'wordlists' && <Navigation page={page} onNavigate={navigate} />}
       </>

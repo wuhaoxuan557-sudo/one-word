@@ -12,7 +12,7 @@ export const nextMidnight = calendarMidnight;
 
 export function buildDailyPlan(words: readonly Word[], cards: readonly CardRecord[], settings: AppSettings, now: number): DailyPlan {
   const previous = settings.daily;
-  const day = localDay(now, settings.syncTimeZone);
+  const day = localDay(now);
   const plan: DailyPlan = previous?.day === day ? { ...previous, newIds: [...previous.newIds], reviewIds: [...previous.reviewIds] } : {
     day, newIds: [], reviewIds: [], completed: 0, sequence: previous?.sequence ?? 0, current: null, preferredNextId: null,
     undo: previous?.undo ?? null,
@@ -53,7 +53,7 @@ export function dailyQueue(snapshot: Snapshot, now: number): QueueItem[] {
     const card = records.get(wordId);
     if (card?.slashed) return [];
     if (!card || !card.fsrs.reps) return [{ wordId, kind: 'new' as const, dueAt: 0 }];
-    if (card.fsrs.due.getTime() >= nextMidnight(now, snapshot.settings.syncTimeZone) && !isLearning(card)) return [];
+    if (card.fsrs.due.getTime() >= nextMidnight(now) && !isLearning(card)) return [];
     return [{ wordId, kind: 'review' as const, dueAt: card.fsrs.due.getTime() }];
   }).sort((a, b) => (a.kind === 'review' ? 0 : 1) - (b.kind === 'review' ? 0 : 1) || a.dueAt - b.dueAt);
 }
@@ -118,7 +118,7 @@ export function nextWakeAt(snapshot: Snapshot, now: number): number {
   const admitted = new Set([...(plan?.newIds ?? []), ...(plan?.reviewIds ?? [])]);
   const canAdmit = (plan?.reviewIds.length ?? 0) < snapshot.settings.reviewLimit;
   const allowed = snapshot.activeWordIds ? new Set(snapshot.activeWordIds) : null;
-  return Math.min(nextMidnight(now, snapshot.settings.syncTimeZone), plan?.undo?.expiresAt ?? Infinity,
+  return Math.min(nextMidnight(now), plan?.undo?.expiresAt ?? Infinity,
     ...snapshot.cards.filter(card => (!allowed || allowed.has(card.wordId)) && !card.slashed && card.fsrs.reps > 0 && card.fsrs.due.getTime() > now &&
       (canAdmit || admitted.has(card.wordId))).map(card => {
         const due = card.fsrs.due.getTime();

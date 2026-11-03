@@ -34,14 +34,14 @@ async function device(suffix: string, newLimit = 2) {
   const name = `one-word-sync-test-${suffix}`;
   let db = new VocabularyDatabase(name); await db.delete(); db = new VocabularyDatabase(name); openDatabases.push(db);
   await db.settings.put({ ...defaultSettings(now), newLimit, reviewLimit: 20, autoSpeak: false });
-  const store = createStudyStore(words, db); await store.load(now); await store.mergeShared(emptyShared(), now, 'Asia/Tokyo');
+  const store = createStudyStore(words, db); await store.load(now); await store.mergeShared(emptyShared(), now, 'Asia/Shanghai');
   return store;
 }
 async function send(from: StudyStore, to: StudyStore, at: number) {
   const shared = await from.exportShared(at); const owner = (await from.db.localSettings.get('sync-local'))!.deviceId;
-  const files = encodeDeviceMonth(shared, owner, calendarDay(at, 'Asia/Tokyo').slice(0, 7), 'Asia/Tokyo');
+  const files = encodeDeviceMonth(shared, owner, calendarDay(at).slice(0, 7), 'Asia/Shanghai');
   const received = files.reduce((state, file) => mergeShared(state, decodeDeviceFile(file.content).state), emptyShared());
-  return to.mergeShared(received, at, 'Asia/Tokyo');
+  return to.mergeShared(received, at, 'Asia/Shanghai');
 }
 async function dump(store: StudyStore) {
   return stableJson([await store.db.cards.toArray(), await store.db.reviewLogs.toArray(), await store.db.settings.toArray(), await store.db.syncEvents.toArray()]);
@@ -135,7 +135,7 @@ async function run() {
   check((await copy.load(now + 7000)).logs[0]!.id === upgraded.logs[0]!.id, 'legacy database migration and the same legacy backup import produce the identical UUID');
   check(upgraded.logs[0]!.answeredAt === legacy.logs[0]!.answeredAt && upgraded.cards[0]!.fsrs.reps === 1, 'migration retains answer time and FSRS review count');
 
-  const midnight = Date.parse('2026-11-03T15:00:00Z');
+  const midnight = Date.parse('2026-11-03T16:00:00Z');
   const dayA = await device('day-A'), dayB = await device('day-B');
   const issued = await dayA.transact({ type: 'start' }, midnight - 2000);
   await dayA.transact({ type: 'answer', presentationId: current(issued).id, selectedId: current(issued).wordId, elapsedMs: 1000 }, midnight - 1000);
@@ -149,7 +149,7 @@ async function run() {
     bytes: utf8Bytes(JSON.stringify(compactReview(log, log.deviceId))) }));
   const complete = { ...measured.reviews[0]!, studyMs: 25000 };
   samples.push({ rating: complete.rating, completed: true, bytes: utf8Bytes(JSON.stringify(compactReview(complete, complete.deviceId))) });
-  const serialized = encodeDeviceMonth(measured, owner, '2026-11', 'Asia/Tokyo');
+  const serialized = encodeDeviceMonth(measured, owner, '2026-11', 'Asia/Shanghai');
   const summary = (values: number[]) => ({ count: values.length, min: Math.min(...values), max: Math.max(...values), mean: Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)) });
   const cet4Response = await fetch(`${import.meta.env.BASE_URL}wordlists/cet4.json`);
   if (!cet4Response.ok) throw new Error('The local CET4 measurement fixture could not be loaded.');

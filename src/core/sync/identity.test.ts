@@ -4,6 +4,8 @@ import { migrateSnapshot, snapshotShared } from './migration';
 import { freshSnapshot, studyWords, studyTime } from '../study.test-helper';
 import { prepareChoicePool } from '../choices';
 import { studyTransition as transitionStudy } from '../study.test-helper';
+import { calendarDay, calendarMidnight, STUDY_TIME_ZONE } from './calendar';
+import { quotaUsage } from './quota';
 
 it('matches the RFC UUIDv5 DNS namespace vector and canonicalises nested objects', () => {
   expect(uuid5('www.example.com', '6ba7b810-9dad-11d1-80b4-00c04fd430c8')).toBe('2ed6657d-e927-568b-95e1-2665a8aea6a2');
@@ -36,4 +38,29 @@ it('refuses a legacy card whose FSRS history is missing instead of resetting it'
     slashed: false, bookmarked: false, everWrong: false, introducedAt: studyTime, slashedAt: null }];
   expect(() => migrateSnapshot(original, crypto.randomUUID())).toThrow('历史不完整');
   expect(original.cards[0]!.fsrs.reps).toBe(1);
+});
+it('rebases old logs, feedback, quotas and local metadata to Beijing dates without changing answer timestamps or UUIDs', () => {
+  const at = Date.parse('2026-11-03T15:30:00Z'); const pool = prepareChoicePool(studyWords);
+  const started = transitionStudy(freshSnapshot(at), { type: 'start' }, studyWords, pool, at);
+  const answered = transitionStudy(started, { type: 'answer', presentationId: started.settings.daily!.current!.id, selectedId: 'apple', elapsedMs: 1000 }, studyWords, pool, at + 1000);
+  answered.settings.syncTimeZone = 'Asia/Tokyo'; answered.settings.daily!.day = '2026-11-04'; answered.logs[0]!.day = '2026-11-04';
+  const id = answered.logs[0]!.id, timestamp = answered.logs[0]!.answeredAt;
+  const migrated = migrateSnapshot(answered, crypto.randomUUID());
+  expect(migrated.settings.syncTimeZone).toBe(STUDY_TIME_ZONE); expect(migrated.settings.daily?.day).toBe('2026-11-03');
+  expect(migrated.logs[0]).toMatchObject({ day: '2026-11-03', id, answeredAt: timestamp });
+  expect(migrated.settings.daily?.current?.answer?.day).toBe('2026-11-03');
+  expect(quotaUsage(snapshotShared(migrated).reviews, [], at + 1000)).toMatchObject({ day: '2026-11-03', completed: 1 });
+  expect(calendarDay(at)).toBe('2026-11-03'); expect(calendarMidnight(at)).toBe(Date.parse('2026-11-03T16:00:00Z'));
+  expect(calendarDay(Date.parse('2026-11-03T16:00:00Z'))).toBe('2026-11-04');
+});
+it('keeps Beijing calendar boundaries when the device process timezone changes', () => {
+  const original = process.env.TZ;
+  try {
+    for (const zone of ['America/Los_Angeles', 'Asia/Tokyo', 'UTC']) {
+      process.env.TZ = zone;
+      const boundary = Date.parse('2026-11-03T16:00:00Z');
+      expect(calendarDay(boundary - 1)).toBe('2026-11-03'); expect(calendarDay(boundary)).toBe('2026-11-04');
+      expect(calendarMidnight(boundary - 1)).toBe(boundary);
+    }
+  } finally { if (original === undefined) delete process.env.TZ; else process.env.TZ = original; }
 });
