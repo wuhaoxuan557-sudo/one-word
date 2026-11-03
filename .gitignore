@@ -7,3 +7,4 @@ __pycache__/
 wordlists_src/ecdict.csv
 wordlists_src/*.download
 .qa/
+.pnpm-store/
