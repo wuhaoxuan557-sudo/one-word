@@ -1,5 +1,5 @@
 import type { Snapshot, Word } from '../types';
-import { homeSummary, readyQueue, waitingSummary } from '../core/queue';
+import { homeSummary, localDay, readyQueue, waitingSummary } from '../core/queue';
 import { formatDue } from '../core/scheduler';
 import { Icon } from './Study';
 import { wordlistLabel } from '../core/catalog';
@@ -26,8 +26,8 @@ export function Home({ snapshot, words, now, onStart, busy, onWordlists, onWordb
   updateAvailable?: boolean; onUpdate?: () => void;
 }) {
   const summary = homeSummary(snapshot, words, now);
-  const date = new Date(now);
-  const dayText = `${date.getMonth() + 1}月${date.getDate()}日 · 周${'日一二三四五六'[date.getDay()]}`;
+  const date = new Date(`${localDay(now, snapshot.settings.syncTimeZone)}T12:00:00Z`);
+  const dayText = `${date.getUTCMonth() + 1}月${date.getUTCDate()}日 · 周${'日一二三四五六'[date.getUTCDay()]}`;
   const resumable = Boolean(snapshot.settings.daily?.current);
   const canStart = resumable || readyQueue(snapshot, now).length > 0;
   const waiting = waitingSummary(snapshot, now);

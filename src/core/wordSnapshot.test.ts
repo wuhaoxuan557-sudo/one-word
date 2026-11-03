@@ -4,7 +4,7 @@ import { freshSnapshot, studyWords as words, studyTime as now } from './study.te
 import { emptyCard } from './scheduler';
 import { manageSnapshot } from './preferences';
 import { prepareChoicePool } from './choices';
-import { transitionStudy } from './session';
+import { studyTransition as transitionStudy } from './study.test-helper';
 import { parseBackup, serializeBackup } from './backup';
 
 it('saves the displayed short definition and retains full text for search', () => {

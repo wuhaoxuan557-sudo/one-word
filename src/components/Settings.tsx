@@ -36,7 +36,7 @@ export function Settings({ settings, now, busy, onChange, onExport, onImport }: 
       <button className="data-row" disabled={busy} onClick={onExport}><BackupIcon /><span>导出备份</span><small>{backupDays === null ? '尚未备份' : backupDays === 0 ? '上次 今天' : `上次 ${backupDays} 天前`}</small></button>
       <button className="data-row" disabled={busy} onClick={() => file.current?.click()}><BackupIcon upload /><span>导入备份</span></button>
       <input ref={file} className="file-input" type="file" accept=".json,application/json" aria-label="备份 JSON 文件" onChange={event => { const selected = event.target.files?.[0]; if (selected) onImport(selected); event.target.value = ''; }} />
-    </div><p className="page-note import-warning">导入会覆盖当前全部学习记录，操作前会再确认一次</p></section>
+    </div><p className="page-note import-warning">导入会合并记录、词本及设置，已有历史会保留，操作前会再次确认</p></section>
   </section>;
 }
 function BackupIcon({ upload = false }: { upload?: boolean }) {

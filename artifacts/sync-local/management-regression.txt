@@ -1,0 +1,12 @@
+PASS empty import leaves all four tables unchanged
+PASS invalid JSON import leaves all four tables unchanged
+PASS wrong shape import leaves all four tables unchanged
+PASS unsupported version import leaves all four tables unchanged
+PASS bookmark moves an untouched word ahead of reserved new words
+PASS all preferences survive database reopen
+PASS failed merge transaction restores all original tables
+PASS valid import merges data, retains later local settings and revives FSRS dates
+PASS valid import retains the local feedback and current question
+PASS wordbook unslash returns the word to the queue without adding a review
+PASS successful export records backup reminder time
+ALL M3 DATABASE CHECKS PASSED

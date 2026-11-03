@@ -1,0 +1,16 @@
+PASS four IndexedDB tables including syncEvents
+PASS rating thresholds read from settings
+PASS close/reopen retains phase, options, answer and due time
+PASS IndexedDB preserves FSRS dates
+PASS close/reopen retains log and daily progress
+PASS failed duration update rolls back Next and preserves the current question
+PASS Next persists complete card duration separately from grading time after reopen
+PASS concurrent duplicate submissions produce one review
+PASS slash persists without a new review log
+PASS undo survives reload within its three-second window
+PASS FSRS learning step reappears when due
+PASS slashed word stays excluded after reopen and midnight
+PASS midnight resets daily progress but preserves history
+PASS transaction failure rolls back card, log and resume state together
+ALL DATABASE CHECKS PASSED
+Close this tab, open this URL again, then select the reopen check.

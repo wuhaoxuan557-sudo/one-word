@@ -1,8 +1,13 @@
 import { State } from 'ts-fsrs';
-import type { Snapshot } from '../types';
+import type { Snapshot, Word } from '../types';
 import { word } from './fixtures.test-helper';
-import { defaultSettings } from './session';
+import { defaultSettings, transitionStudy } from './session';
+import type { StudyAction } from './session';
+import type { ChoicePool } from './choices';
 import { emptyCard } from './scheduler';
+
+export const studyTransition = (input: Snapshot, action: StudyAction, words: readonly Word[], pool: ChoicePool, now: number) =>
+  transitionStudy(input, action, words, pool, now, crypto.randomUUID());
 
 export const studyWords = [
   word('apple', { translation: 'n. 苹果', frq: 10 }), word('table', { translation: 'n. 桌子', frq: 20 }),

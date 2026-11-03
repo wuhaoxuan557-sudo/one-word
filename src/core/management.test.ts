@@ -2,7 +2,8 @@ import { expect, it } from 'vitest';
 import { mergeWordlists, selectedWords, wordlistLabel } from './catalog';
 import { manageSnapshot, normaliseSettings, preferences, validatePreferences } from './preferences';
 import { freshSnapshot, dueCard, studyWords as words, studyTime as now } from './study.test-helper';
-import { reconcileSnapshot, transitionStudy } from './session';
+import { reconcileSnapshot } from './session';
+import { studyTransition as transitionStudy } from './study.test-helper';
 import { readyQueue } from './queue';
 import { prepareChoicePool } from './choices';
 

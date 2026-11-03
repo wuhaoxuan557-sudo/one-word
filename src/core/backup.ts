@@ -1,8 +1,12 @@
 import type { Card, ReviewLog } from 'ts-fsrs';
 import type { AppSettings, CardRecord, DailyPlan, Presentation, ReviewEntry, Snapshot } from '../types';
 import { validatePreferences } from './preferences';
+import { clockValue, parseEvent, parseShared, uuid } from './sync/merge';
+import { reviewFact } from './sync/migration';
+import { stableJson } from './sync/identity';
+import { validateTimeZone } from './sync/calendar';
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 const fail = (): never => { throw new Error('备份格式不正确，现有数据未修改。'); };
 const object = (value: unknown): Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : fail();
 const str = (value: unknown): string => typeof value === 'string' && value.length > 0 ? value : fail();
@@ -43,8 +47,11 @@ function fsrsLog(value: unknown): ReviewLog {
 }
 
 export function serializeBackup(snapshot: Snapshot, now: number): string {
-  return JSON.stringify({ format: 'one-word-backup', version: BACKUP_VERSION, exportedAt: now,
-    cards: snapshot.cards, reviewLogs: snapshot.logs, settings: { ...snapshot.settings, lastExportAt: now } }, null, 2);
+  const version = snapshot.events === undefined ? 1 : BACKUP_VERSION;
+  const parsed = parseBackup(JSON.stringify({ format: 'one-word-backup', version, exportedAt: now,
+    cards: snapshot.cards, reviewLogs: snapshot.logs, settings: { ...snapshot.settings, lastExportAt: now }, syncEvents: snapshot.events }));
+  return JSON.stringify({ format: 'one-word-backup', version, exportedAt: now,
+    cards: parsed.cards, reviewLogs: parsed.logs, settings: parsed.settings, ...(parsed.events === undefined ? {} : { syncEvents: parsed.events }) }, null, 2);
 }
 
 export function parseBackup(text: string, knownIds?: ReadonlySet<string>): Snapshot {
@@ -53,7 +60,7 @@ export function parseBackup(text: string, knownIds?: ReadonlySet<string>): Snaps
   try { value = JSON.parse(text.replace(/^\uFEFF/, '')); } catch { throw new Error('文件不是有效的 JSON，现有数据未修改。'); }
   const root = object(value);
   if (root.format !== 'one-word-backup') fail();
-  if (root.version !== BACKUP_VERSION) throw new Error('不支持此备份版本，现有数据未修改。');
+  if (root.version !== 1 && root.version !== BACKUP_VERSION) throw new Error('不支持此备份版本，现有数据未修改。');
   timestamp(root.exportedAt);
   const wordId = (value: unknown) => {
     const id = str(value);
@@ -78,6 +85,9 @@ export function parseBackup(text: string, knownIds?: ReadonlySet<string>): Snaps
       selectedId: item.selectedId === null ? null : wordId(item.selectedId), correct: bool(item.correct), elapsedMs: num(item.elapsedMs),
       answeredAt: timestamp(item.answeredAt), rating: choice(item.rating, ['Again', 'Hard', 'Good', 'Easy']),
       dueAt: timestamp(item.dueAt), fsrsLog: fsrsLog(item.fsrsLog),
+      ...(item.deviceId === undefined ? {} : { deviceId: uuid(item.deviceId) }),
+      ...(item.profileId === undefined ? {} : { profileId: str(item.profileId) }),
+      ...(item.syncClock === undefined ? {} : { syncClock: clockValue(item.syncClock) }),
       ...(item.studyMs === undefined ? {} : { studyMs: num(item.studyMs) }) };
     if (entry.correct !== (entry.selectedId === entry.wordId) || (entry.rating === 'Again') === entry.correct ||
       entry.fsrsLog.rating !== ['Again', 'Hard', 'Good', 'Easy'].indexOf(entry.rating) + 1 ||
@@ -94,11 +104,12 @@ export function parseBackup(text: string, knownIds?: ReadonlySet<string>): Snaps
     const result: Presentation = { id: str(item.id), wordId: wordId(item.wordId), optionIds: ids(item.optionIds),
       kind: choice(item.kind, ['new', 'review']), reviewNumber: integer(item.reviewNumber),
       phase: choice(item.phase, ['recognise', 'feedback', 'details']), answer: item.answer === null ? null : review(item.answer),
+      ...(item.pinned === undefined ? {} : { pinned: bool(item.pinned) }),
       ...(item.startedAt === undefined ? {} : { startedAt: timestamp(item.startedAt) }) };
     if (![0, 4].includes(result.optionIds.length) || (result.optionIds.length === 4 && !result.optionIds.includes(result.wordId)) ||
       (result.phase === 'recognise') !== (result.answer === null)) fail();
     if (result.answer && (result.answer.id !== result.id || result.answer.wordId !== result.wordId ||
-      JSON.stringify(logs.find(log => log.id === result.id)) !== JSON.stringify(result.answer))) fail();
+      !logs.some(log => log.id === result.id && stableJson(reviewFact(log)) === stableJson(reviewFact(result.answer!))))) fail();
     return result;
   };
   const daily = (value: unknown): DailyPlan | null => {
@@ -108,7 +119,7 @@ export function parseBackup(text: string, knownIds?: ReadonlySet<string>): Snaps
     if (item.undo !== null) {
       const raw = object(item.undo);
       undo = { wordId: wordId(raw.wordId), previous: raw.previous === null ? null : card(raw.previous),
-        expiresAt: timestamp(raw.expiresAt), day: day(raw.day), counted: bool(raw.counted) };
+        expiresAt: timestamp(raw.expiresAt), day: day(raw.day), counted: bool(raw.counted), ...(raw.eventId === undefined ? {} : { eventId: uuid(raw.eventId) }) };
       if (undo.previous && undo.previous.wordId !== undo.wordId) fail();
     }
     const result: DailyPlan = { day: day(item.day), newIds: ids(item.newIds), reviewIds: ids(item.reviewIds),
@@ -123,8 +134,14 @@ export function parseBackup(text: string, knownIds?: ReadonlySet<string>): Snaps
   const settings: AppSettings = { id: 'app', newLimit: integer(raw.newLimit), reviewLimit: integer(raw.reviewLimit),
     grading: { easyMs: num(grading.easyMs), hardMs: num(grading.hardMs) }, autoSpeak: bool(raw.autoSpeak), accent: choice(raw.accent, ['en-GB', 'en-US']),
     createdAt: timestamp(raw.createdAt), lastExportAt: nullableTime(raw.lastExportAt), daily: daily(raw.daily),
-    selectedWordlists: array(raw.selectedWordlists).map(str) };
+    selectedWordlists: array(raw.selectedWordlists).map(str), ...(raw.syncTimeZone === undefined ? {} : { syncTimeZone: validateTimeZone(str(raw.syncTimeZone)) }) };
   validatePreferences(settings);
+  const events = root.version === 2 ? array(root.syncEvents).map(parseEvent) : undefined;
+  if (events) {
+    const state = parseShared({ version: 1, profileId: 'ts-fsrs-5.4.2/one-word-1', reviews: logs.map(reviewFact), events });
+    for (const event of state.events) if ('wordId' in event) wordId(event.wordId);
+    return { cards, logs, settings, events: state.events };
+  }
   return { cards, logs, settings };
 }
 
@@ -133,6 +150,7 @@ export function backupWordIds(snapshot: Snapshot): string[] {
   return [...new Set([
     ...snapshot.cards.map(card => card.wordId),
     ...snapshot.logs.flatMap(log => [log.wordId, ...(log.selectedId ? [log.selectedId] : [])]),
+    ...(snapshot.events ?? []).flatMap(event => 'wordId' in event ? [event.wordId] : []),
     ...(plan ? [...plan.newIds, ...plan.reviewIds, ...(plan.preferredNextId ? [plan.preferredNextId] : []),
       ...(plan.undo ? [plan.undo.wordId] : []), ...(plan.current ? [plan.current.wordId, ...plan.current.optionIds] : [])] : []),
   ])];

@@ -43,7 +43,7 @@ export function manageSnapshot(input: Snapshot, action: ManagementAction, words:
   }
   // Release only untouched reservations. Completed work still consumes today's quota.
   const plan = snapshot.settings.daily;
-  if (!plan || plan.day !== localDay(now)) return action.type === 'unslash'
+  if (!plan || plan.day !== localDay(now, snapshot.settings.syncTimeZone)) return action.type === 'unslash'
     ? { ...snapshot, settings: { ...snapshot.settings, daily: { ...buildDailyPlan([], snapshot.cards, snapshot.settings, now), preferredNextId: action.wordId } } }
     : snapshot;
   const cards = new Map(snapshot.cards.map(card => [card.wordId, card]));

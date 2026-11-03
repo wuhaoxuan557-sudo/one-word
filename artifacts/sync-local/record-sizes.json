@@ -1,0 +1,82 @@
+{
+  "reviews": [
+    {
+      "rating": "Good",
+      "completed": true,
+      "bytes": 86
+    },
+    {
+      "rating": "Again",
+      "completed": false,
+      "bytes": 83
+    },
+    {
+      "rating": "Good",
+      "completed": true,
+      "bytes": 87
+    }
+  ],
+  "eventBytes": [
+    {
+      "type": "preference",
+      "bytes": 62
+    },
+    {
+      "type": "preference",
+      "bytes": 59
+    },
+    {
+      "type": "preference",
+      "bytes": 64
+    },
+    {
+      "type": "preference",
+      "bytes": 53
+    },
+    {
+      "type": "preference",
+      "bytes": 56
+    },
+    {
+      "type": "word",
+      "bytes": 101
+    },
+    {
+      "type": "word",
+      "bytes": 101
+    },
+    {
+      "type": "preference",
+      "bytes": 52
+    },
+    {
+      "type": "preference",
+      "bytes": 64
+    },
+    {
+      "type": "preference",
+      "bytes": 58
+    }
+  ],
+  "fileBytes": [
+    1326
+  ],
+  "cet4CompletedCorrect": {
+    "count": 3849,
+    "min": 99,
+    "max": 123,
+    "mean": 108.61
+  },
+  "cet4Unknown": {
+    "count": 3849,
+    "min": 92,
+    "max": 104,
+    "mean": 96.8
+  },
+  "cet4WithImportedOrigin": {
+    "count": 3849,
+    "min": 138,
+    "max": 162,
+    "mean": 147.61
+  }
+}

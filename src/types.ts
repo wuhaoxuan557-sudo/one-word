@@ -27,6 +27,7 @@ export interface Answer {
 }
 import type { Card, ReviewLog as FSRSReviewLog } from 'ts-fsrs';
 import type { GradingConfig } from './core/rating';
+import type { Clock, SyncEvent } from './core/sync/model';
 
 
 export interface WordSnapshot {
@@ -53,6 +54,9 @@ export interface ReviewEntry extends Answer {
   fsrsLog: FSRSReviewLog;
   // Absent until Next is pressed; older answer-only logs stay valid.
   studyMs?: number;
+  deviceId?: string;
+  profileId?: string;
+  syncClock?: Clock;
 }
 export interface Presentation {
   id: string;
@@ -63,6 +67,7 @@ export interface Presentation {
   phase: 'recognise' | 'feedback' | 'details';
   answer: ReviewEntry | null;
   startedAt?: number;
+  pinned?: boolean;
 }
 export interface DailyPlan {
   day: string;
@@ -72,7 +77,7 @@ export interface DailyPlan {
   sequence: number;
   current: Presentation | null;
   preferredNextId: string | null;
-  undo: { wordId: string; previous: CardRecord | null; expiresAt: number; day: string; counted: boolean } | null;
+  undo: { wordId: string; previous: CardRecord | null; expiresAt: number; day: string; counted: boolean; eventId?: string } | null;
 }
 export interface AppSettings {
   id: 'app';
@@ -85,6 +90,7 @@ export interface AppSettings {
   lastExportAt: number | null;
   daily: DailyPlan | null;
   selectedWordlists: string[];
+  syncTimeZone?: string;
 }
 export type Preferences = Pick<AppSettings, 'newLimit' | 'reviewLimit' | 'grading' | 'autoSpeak' | 'accent' | 'selectedWordlists'>;
 export interface Snapshot {
@@ -92,4 +98,5 @@ export interface Snapshot {
   logs: ReviewEntry[];
   settings: AppSettings;
   activeWordIds?: string[];
+  events?: SyncEvent[];
 }

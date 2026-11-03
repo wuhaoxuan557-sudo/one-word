@@ -2,22 +2,17 @@ import { State } from 'ts-fsrs';
 import type { AppSettings, CardRecord, DailyPlan, ReviewEntry, Snapshot, Word } from '../types';
 import { STUDY_CONFIG } from './config';
 import { sortByFrequency } from './wordlist';
+import { calendarDay, calendarMidnight } from './sync/calendar';
 
 const learnAheadMs = STUDY_CONFIG.learnAheadMinutes * 60_000;
 const isLearning = (card: CardRecord) => card.fsrs.state === State.Learning || card.fsrs.state === State.Relearning;
 
-export function localDay(now: number): string {
-  const date = new Date(now);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-export function nextMidnight(now: number): number {
-  const date = new Date(now);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
-}
+export const localDay = calendarDay;
+export const nextMidnight = calendarMidnight;
 
 export function buildDailyPlan(words: readonly Word[], cards: readonly CardRecord[], settings: AppSettings, now: number): DailyPlan {
   const previous = settings.daily;
-  const day = localDay(now);
+  const day = localDay(now, settings.syncTimeZone);
   const plan: DailyPlan = previous?.day === day ? { ...previous, newIds: [...previous.newIds], reviewIds: [...previous.reviewIds] } : {
     day, newIds: [], reviewIds: [], completed: 0, sequence: previous?.sequence ?? 0, current: null, preferredNextId: null,
     undo: previous?.undo ?? null,
@@ -25,7 +20,7 @@ export function buildDailyPlan(words: readonly Word[], cards: readonly CardRecor
   if (plan.undo && now >= plan.undo.expiresAt) plan.undo = null;
   const records = new Map(cards.map(card => [card.wordId, card]));
   const allowed = new Set(words.map(word => word.id));
-  if (plan.current && !allowed.has(plan.current.wordId)) plan.current = null;
+  if (plan.current && !allowed.has(plan.current.wordId) && !plan.current.pinned) plan.current = null;
   const admitted = new Set([...plan.newIds, ...plan.reviewIds]);
   // Admit distinct cards once per local day; learning repetitions reuse that slot.
   const due = cards.filter(card => allowed.has(card.wordId) && !card.slashed && card.fsrs.reps > 0 &&
@@ -58,7 +53,7 @@ export function dailyQueue(snapshot: Snapshot, now: number): QueueItem[] {
     const card = records.get(wordId);
     if (card?.slashed) return [];
     if (!card || !card.fsrs.reps) return [{ wordId, kind: 'new' as const, dueAt: 0 }];
-    if (card.fsrs.due.getTime() >= nextMidnight(now) && !isLearning(card)) return [];
+    if (card.fsrs.due.getTime() >= nextMidnight(now, snapshot.settings.syncTimeZone) && !isLearning(card)) return [];
     return [{ wordId, kind: 'review' as const, dueAt: card.fsrs.due.getTime() }];
   }).sort((a, b) => (a.kind === 'review' ? 0 : 1) - (b.kind === 'review' ? 0 : 1) || a.dueAt - b.dueAt);
 }
@@ -123,7 +118,7 @@ export function nextWakeAt(snapshot: Snapshot, now: number): number {
   const admitted = new Set([...(plan?.newIds ?? []), ...(plan?.reviewIds ?? [])]);
   const canAdmit = (plan?.reviewIds.length ?? 0) < snapshot.settings.reviewLimit;
   const allowed = snapshot.activeWordIds ? new Set(snapshot.activeWordIds) : null;
-  return Math.min(nextMidnight(now), plan?.undo?.expiresAt ?? Infinity,
+  return Math.min(nextMidnight(now, snapshot.settings.syncTimeZone), plan?.undo?.expiresAt ?? Infinity,
     ...snapshot.cards.filter(card => (!allowed || allowed.has(card.wordId)) && !card.slashed && card.fsrs.reps > 0 && card.fsrs.due.getTime() > now &&
       (canAdmit || admitted.has(card.wordId))).map(card => {
         const due = card.fsrs.due.getTime();

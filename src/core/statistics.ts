@@ -2,16 +2,17 @@ import type { Snapshot } from '../types';
 import { localDay } from './queue';
 
 export function statistics(snapshot: Snapshot, now: number) {
-  const today = new Date(now);
+  const timeZone = snapshot.settings.syncTimeZone;
+  const today = new Date(`${localDay(now, timeZone)}T12:00:00Z`);
   const days = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29 + i);
-    return { day: localDay(date.getTime()), reviews: 0, firstCount: 0, firstCorrect: 0, accuracy: null as number | null };
+    const date = new Date(today.getTime() - (29 - i) * 86_400_000);
+    return { day: date.toISOString().slice(0, 10), reviews: 0, firstCount: 0, firstCorrect: 0, accuracy: null as number | null };
   });
   const byDay = new Map(days.map(day => [day.day, day]));
   const first = new Set<string>();
   const history = snapshot.logs.filter(log => log.answeredAt <= now).slice().sort((a, b) => a.answeredAt - b.answeredAt || a.id.localeCompare(b.id));
   for (const log of history) {
-    const day = byDay.get(localDay(log.answeredAt));
+    const day = byDay.get(localDay(log.answeredAt, timeZone));
     if (!day) continue;
     day.reviews++;
     const key = `${day.day}:${log.wordId}`;

@@ -1,0 +1,24 @@
+PASS independent databases issue globally distinct UUID questions
+PASS concurrent correct/wrong answers survive tuple transfer and rebuild one FSRS card
+PASS bidirectional exchange converges to the same canonical shared state
+PASS each database retains its own current feedback instead of importing the other question
+PASS repeated merge does not duplicate records or produce artificial field versions
+PASS Next after merged feedback preserves the completed duration and issues a fresh local UUID
+PASS two offline introductions consume the shared quota; merged reservations do not grant another new allowance
+PASS three-second slash undo preserves a review merged after the original card snapshot
+PASS undo cancels only its own slash quota event, retaining concurrent completed answers
+PASS equal-millisecond preference edits converge by HLC and device UUID
+PASS local preferences take effect before any exchange
+PASS backups and shared tuples exclude device-local credentials
+PASS repeated backup imports merge history while retaining the receiver current question and device identity
+PASS invalid import leaves all four stores and local metadata unchanged
+PASS a bound dataset timezone cannot be silently changed by a later merge
+PASS an event write failure rolls back cards, logs, settings, HLC and event data together
+PASS database close/reopen retains merged progress, HLC metadata and device UUID
+PASS version 2 backups preserve validated merge events
+PASS real IndexedDB version 1 upgrade adds syncEvents and atomically migrates log/current IDs
+PASS legacy database migration and the same legacy backup import produce the identical UUID
+PASS migration retains answer time and FSRS review count
+PASS shared-timezone midnight resets only the day quota while retaining merged history
+PASS zero external network requests attempted
+ALL LOCAL SYNC CHECKS PASSED

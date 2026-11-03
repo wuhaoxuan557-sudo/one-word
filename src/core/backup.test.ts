@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest';
 import { parseBackup, serializeBackup } from './backup';
-import { transitionStudy } from './session';
+import { studyTransition as transitionStudy } from './study.test-helper';
 import { prepareChoicePool } from './choices';
 import { freshSnapshot, studyWords as words, studyTime as now } from './study.test-helper';
+import { migrateSnapshot } from './sync/migration';
 
 const pool = prepareChoicePool(words);
 const start = transitionStudy(freshSnapshot(), { type: 'start' }, words, pool, now);
@@ -42,4 +43,15 @@ it('rejects broken dates, duplicate IDs, unknown words, invalid settings and mis
     const copy = structuredClone(saved); mutate(copy);
     expect(() => parseBackup(serializeBackup(copy, now), known)).toThrow();
   }
+});
+
+it('roundtrips version 2 events and strips unknown credential fields at every export boundary', () => {
+  const snapshot = migrateSnapshot(saved, crypto.randomUUID());
+  Object.assign(snapshot.settings, { token: 'LOCAL_ONLY_SECRET' });
+  Object.assign(snapshot.logs[0]!, { token: 'LOCAL_ONLY_SECRET' });
+  Object.assign(snapshot.cards[0]!.fsrs, { token: 'LOCAL_ONLY_SECRET' });
+  const backup = serializeBackup(snapshot, now);
+  expect(backup).not.toContain('LOCAL_ONLY_SECRET');
+  expect(JSON.parse(backup).version).toBe(2);
+  expect(new Set(parseBackup(backup).events)).toEqual(new Set(snapshot.events));
 });

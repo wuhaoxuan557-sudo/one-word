@@ -3,6 +3,7 @@ import { defaultSettings } from '../../src/core/session';
 import { nextMidnight } from '../../src/core/queue';
 import { studyWords as words, studyTime as now } from '../../src/core/study.test-helper';
 import type { Snapshot } from '../../src/types';
+import { stableJson } from '../../src/core/sync/identity';
 
 const databaseName = 'one-word-m2-browser-tests';
 const output = document.querySelector<HTMLPreElement>('#result')!;
@@ -12,7 +13,7 @@ function check(condition: unknown, label: string): asserts condition {
   if (!condition) throw new Error(label);
   report.push(`PASS ${label}`); output.textContent = report.join('\n');
 }
-const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const equal = (a: unknown, b: unknown) => stableJson(a) === stableJson(b);
 
 async function runTests() {
   report.length = 0;
@@ -20,9 +21,9 @@ async function runTests() {
   await db.delete();
   db = new VocabularyDatabase(databaseName);
   let store = createStudyStore(words, db);
-  await store.load(now);
-  check(equal(db.tables.map(table => table.name).sort(), ['cards', 'reviewLogs', 'settings']), 'exactly three IndexedDB tables');
   await db.settings.put({ ...defaultSettings(now), newLimit: 2, reviewLimit: 1, grading: { easyMs: 500, hardMs: 900 }, autoSpeak: false });
+  await store.load(now);
+  check(equal(db.tables.map(table => table.name).sort(), ['cards', 'reviewLogs', 'settings', 'syncEvents']), 'four IndexedDB tables including syncEvents');
   const initial = await store.transact({ type: 'start' }, now);
   const saved = await store.transact({ type: 'answer', presentationId: current(initial).id, selectedId: 'apple', elapsedMs: 600 }, now + 1000);
   check(current(saved).answer?.rating === 'Good', 'rating thresholds read from settings');

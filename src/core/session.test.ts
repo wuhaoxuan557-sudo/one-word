@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import type { Snapshot } from '../types';
 import { prepareChoicePool } from './choices';
 import { dailyQueue, estimateMinutes, nextMidnight, queueProgress } from './queue';
-import { transitionStudy } from './session';
+import { studyTransition as transitionStudy } from './study.test-helper';
 import type { StudyAction } from './session';
 import { dueCard, freshSnapshot, studyTime as now, studyWords as words } from './study.test-helper';
 

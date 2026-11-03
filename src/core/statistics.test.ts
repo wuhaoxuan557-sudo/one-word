@@ -33,3 +33,10 @@ it('handles midnight and month boundaries with no dependence on stored timezone 
   expect(result.days[28]).toMatchObject({ day: '2026-10-31', reviews: 1, accuracy: 1 });
   expect(result.days[29]).toMatchObject({ day: '2026-11-01', reviews: 1, accuracy: 0 });
 });
+it('calculates days and first-answer accuracy using the dataset timezone', () => {
+  const snapshot = freshSnapshot(); snapshot.settings.syncTimeZone = 'Asia/Tokyo';
+  const at = Date.parse('2026-11-03T15:00:00Z');
+  snapshot.logs = [log('a', 'apple', at - 1, true), log('b', 'apple', at, false)];
+  const result = statistics(snapshot, at);
+  expect(result.days.at(-1)).toMatchObject({ day: '2026-11-04', reviews: 1, firstCount: 1, accuracy: 0 });
+});
