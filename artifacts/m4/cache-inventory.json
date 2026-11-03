@@ -1,0 +1,33 @@
+{
+  "scope": "http://localhost:4180/one-word/",
+  "active": "activated",
+  "waiting": null,
+  "resources": [
+    {
+      "name": "workbox-precache-v2-http://localhost:4180/one-word/",
+      "urls": [
+        "/one-word/manifest.webmanifest",
+        "/one-word/manifest-dark.webmanifest",
+        "/one-word/index.html",
+        "/one-word/icons/icon-512.png",
+        "/one-word/icons/icon-192.png",
+        "/one-word/icons/apple-touch-icon.png",
+        "/one-word/assets/zhan-seal-De7PPJXD.woff2",
+        "/one-word/assets/noto-sans-latin-ext-400-normal-CVf-LbaS.woff2",
+        "/one-word/assets/noto-sans-latin-400-normal-BTkUljjl.woff2",
+        "/one-word/assets/newsreader-latin-500-normal-B66TYsaK.woff2",
+        "/one-word/assets/newsreader-latin-400-normal-BFBkh4jY.woff2",
+        "/one-word/assets/newsreader-latin-400-italic-CEihAR-f.woff2",
+        "/one-word/assets/index-QSVoD--B.css",
+        "/one-word/assets/index-BXoyYh1s.js",
+        "/one-word/wordlists/index.json"
+      ]
+    },
+    {
+      "name": "one-word-wordlists-60a48a969085",
+      "urls": [
+        "/one-word/wordlists/cet4.json"
+      ]
+    }
+  ]
+}

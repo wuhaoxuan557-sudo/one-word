@@ -20,9 +20,10 @@ function NavigationIcon({ name }: { name: 'home' | 'stats' | 'settings' }) {
   </svg>;
 }
 
-export function Home({ snapshot, words, now, onStart, busy, onWordlists, onWordbook, onExport }: {
+export function Home({ snapshot, words, now, onStart, busy, onWordlists, onWordbook, onExport, updateAvailable, onUpdate }: {
   snapshot: Snapshot; words: Word[]; now: number; onStart: () => void; busy: boolean;
   onWordlists: () => void; onWordbook: (tab: 'bookmarked' | 'slashed') => void; onExport: () => void;
+  updateAvailable?: boolean; onUpdate?: () => void;
 }) {
   const summary = homeSummary(snapshot, words, now);
   const date = new Date(now);
@@ -49,6 +50,7 @@ export function Home({ snapshot, words, now, onStart, busy, onWordlists, onWordb
         <button onClick={() => onWordbook('bookmarked')} aria-label={`生词本 ${summary.bookmarked}`}><Icon name="bookmark" /><span><strong>{summary.bookmarked}</strong><small>生词本</small></span></button>
       </div>
       <div className="home-spacer" />
+      {updateAvailable && <button className="update-prompt" disabled={busy} onClick={onUpdate}>有新版本 · 点击更新</button>}
       {overdue && <div className="backup-reminder"><p>{snapshot.settings.lastExportAt ? `距上次备份已 ${summary.backupDays} 天` : `尚未备份 · 已使用 ${summary.backupDays} 天`}</p><button disabled={busy} onClick={onExport}>导出备份</button></div>}
       <button className="primary-button home-start" disabled={!canStart || busy} onClick={onStart}>
         {canStart ? resumable ? '继续学习' : '开始学习' : waiting.count ? '稍后再来' : '今日已完成'}

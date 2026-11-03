@@ -219,3 +219,4 @@ p, h1, h2 { margin: 0; }
 .import-file-name { color: var(--ink-2); overflow-wrap: anywhere; margin-bottom: 12px; }
 .import-dialog > div { display: flex; gap: 12px; margin-top: 20px; }
 .import-dialog .primary-button { font-size: 15px; }
+.update-prompt { min-height: 44px; padding: 8px 0; border: 0; background: none; color: var(--ink-2); font-size: 13px; text-align: center; }

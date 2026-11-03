@@ -105,6 +105,10 @@
   - `reviewLogs`：每次作答的 wordId、时间戳、评分、用时、是否正确；
   - `settings`。
 - 启动时调用 `navigator.storage.persist()`，尽量避免浏览器清理本地数据。
+- M4 使用 vite-plugin-pwa，应用外壳、字体、图标、浅/深色 manifest 与 index.json 预缓存；完整词表使用 CacheFirst 运行时缓存，选中后后台预取，仅加载所选词表。词表缓存按构建时数据指纹区分版本；离线选择未缓存词表应明确提示并保留原设置与进度。
+- 更新采用 prompt：只有首页显示“有新版本 · 点击更新”，点击才激活并重载当前标签页；学习中和其他标签页不自动刷新。联网恢复、重新打开及每小时检查更新。浅/深色 manifest 的 theme_color、background_color 从 tokens 的对应 --bg 读取，共用应用 ID。
+- Manifest 名称“一词”，display 为 standalone，使用基于 ZhanSeal 本地字体生成并提交的 192、512、180 像素 PNG；iOS 保留 viewport-fit=cover，增加 apple-mobile-web-app-capable=yes 及 black-translucent 状态栏。
+- GitHub Pages 部署路径固定 `/one-word/`，资源与请求使用 BASE_URL。main 推送触发 frozen install、测试、构建、官方 Pages 上传和部署；本轮只提交，由用户自行推送并在仓库 Pages 设置中选择 GitHub Actions。
 - 设置页提供"导出 JSON"和"导入 JSON"。导入前明确提示会覆盖现有数据。
 - M3 备份格式为 `format: "one-word-backup"`、`version: 1`，包含导出时间、三张表数据与当前学习状态。先校验 JSON、版本、记录字段/日期/引用、设置；空文件、错误格式或版本不符都不得修改现有数据。通过校验才显示覆盖确认框，取消不写入；确认后用单个事务替换三表，任何失败整体回滚。导出触发下载后记录备份时间。
 - 旧数据库或旧版 v1 备份缺少快照时，按索引定位并补读所需来源词表，补齐快照且保留 FSRS、标记、日志及进度；此迁移可重复执行，不清库。正常启动不再读取未选词表，补齐缺失快照是一次性例外。保留下来的旧题若有来自旧选择的干扰项，点击继续学习时才补读其来源。

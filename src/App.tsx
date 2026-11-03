@@ -20,9 +20,11 @@ import { Stats } from './components/Stats';
 import { Settings } from './components/Settings';
 import { Wordlists } from './components/Wordlists';
 import { ImportConfirmation } from './components/ImportConfirmation';
+import { applyPwaUpdate, fetchOfflineResource, prefetchWordlists, usePwaUpdate } from './pwa';
 import { DetailContent, DetailFooter, FeedbackFooter, QuizCard, StudyHeader, UndoToast } from './components/Study';
 
 export default function App() {
+  const updateAvailable = usePwaUpdate();
   const [catalog, setCatalog] = useState<Catalog>({});
   const [wordlistIndex, setWordlistIndex] = useState<WordlistIndex | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -57,7 +59,7 @@ export default function App() {
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
-    const source = createWordlistLoader(url => fetch(url, { signal: controller.signal }));
+    const source = createWordlistLoader(url => fetchOfflineResource(url, controller.signal));
     const opened = createStudyStore([], undefined, source.catalog, source);
     loader.current = source;
     setLoading(true); setError('');
@@ -80,10 +82,21 @@ export default function App() {
       if (mounted.current) { setCatalog({ ...loader.current?.catalog }); setSnapshot(saved); setNow(time); setError(''); }
       return saved;
     } catch (reason) {
-      if (mounted.current) setError(`学习进度未保存，请重试：${reason instanceof Error ? reason.message : '本地数据库错误'}`);
+      if (mounted.current) {
+        const message = reason instanceof Error ? reason.message : '本地数据库错误';
+        if (action.type === 'preferences') setNotice({ text: message, error: true });
+        else setError(`学习进度未保存，请重试：${message}`);
+      }
       return null;
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
   }, []);
+
+  useEffect(() => {
+    if (!import.meta.env.PROD || !snapshot) return;
+    void prefetchWordlists(snapshot.settings.selectedWordlists).catch(reason => {
+      if (mounted.current) setNotice({ text: reason instanceof Error ? reason.message : '离线词表保存失败，请联网重试。', error: true });
+    });
+  }, [snapshot?.settings.selectedWordlists]);
 
   const navigate = (next: MainPage | 'wordlists') => { cancelSpeech(); setActive(false); setPage(next); setNotice(null); setSpeechNotice(''); };
   const exportData = async () => {
@@ -209,7 +222,8 @@ export default function App() {
       : error || !snapshot ? <section className="welcome"><h1>暂时无法继续</h1><p role="alert">{error || '本地数据未就绪。'}</p><button className="primary-button" onClick={() => setRetry(value => value + 1)}>重新加载</button></section>
       : !active ? <>
         {page === 'home' ? <Home snapshot={snapshot} words={words} now={now} onStart={() => void begin()} busy={busy} onWordlists={() => navigate('wordlists')}
-          onWordbook={tab => { setWordbookTab(tab); navigate('wordbook'); }} onExport={() => void exportData()} />
+          onWordbook={tab => { setWordbookTab(tab); navigate('wordbook'); }} onExport={() => void exportData()}
+          updateAvailable={updateAvailable} onUpdate={applyPwaUpdate} />
           : page === 'wordbook' ? <Wordbook snapshot={snapshot} tab={wordbookTab} onTab={setWordbookTab} busy={busy}
             onRemove={(wordId, tab) => { void run(tab === 'slashed' ? { type: 'unslash', wordId } : { type: 'bookmark', wordId, value: false }); }} />
           : page === 'stats' ? <Stats snapshot={snapshot} now={now} />

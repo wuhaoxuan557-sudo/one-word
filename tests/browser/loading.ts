@@ -19,7 +19,7 @@ function source(failGre = false) {
   const loader = createWordlistLoader(url => {
     requested.push(url.split('/').pop()!);
     return failGre && url.endsWith('/gre.json') ? Promise.reject(new Error('Intentional load failure')) : fetch(url);
-  }, '/');
+  }, import.meta.env.BASE_URL);
   return { loader, requested };
 }
 async function runTests() {

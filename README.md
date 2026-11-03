@@ -1,4 +1,4 @@
-# 一词 · M3
+# 一词 · M4
 
 按 `SPEC.md` 和 `design/html/01–07` 实现的个人单词练习。默认 CET4，可多选 8 个内置词表；包含学习、词本、统计、设置及 JSON 备份。使用 Dexie / IndexedDB 保存学习数据，ts-fsrs 生成真实排期。关闭页面再打开会回到首页，点击“继续学习”恢复当前题、选项顺序、反馈或详情阶段。跟随系统深色模式，桌面内容最大宽度 480px。
 
@@ -21,11 +21,11 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-打开终端显示的 Local 地址，通常为 `http://localhost:5173/`。保持终端运行；按 Ctrl+C 停止。端口被占用时以终端实际输出为准。
+打开终端显示的 Local 地址，通常为 `http://localhost:5173/one-word/`。保持终端运行；按 Ctrl+C 停止。端口被占用时以终端实际输出为准。
 
 ## 在手机上打开
 
-手机和电脑连接同一 Wi-Fi，电脑上先运行 `pnpm dev`。它监听 `0.0.0.0`，然后在手机 Safari 输入 `http://电脑的局域网IPv4:5173/`；手机上的 localhost 指的是手机自己，不能用于访问电脑。
+手机和电脑连接同一 Wi-Fi，电脑上先运行 `pnpm dev`，然后在手机 Safari 输入 `http://电脑的局域网IP:5173/one-word/`；手机上的 localhost 指的是手机自己，不能用于访问电脑。局域网 HTTP 可检查界面；安装和离线验证使用下面的 HTTPS Pages 地址。
 
 可以用以下命令查看电脑地址：
 
@@ -33,7 +33,7 @@ pnpm dev
 Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -eq 'WLAN' } | Select-Object IPAddress
 ```
 
-本次检查的 WLAN 地址是 `172.19.98.56`，对应 `http://172.19.98.56:5173/`。地址可能随网络变化。若无法访问，检查是否同网、网络是否禁止设备互访，以及 Windows 是否允许该开发服务通过当前可信网络；项目不会自动修改防火墙设置。
+用查到的电脑局域网 IP 替换地址中的占位文字，地址可能随网络变化。若无法访问，检查是否同网、网络是否禁止设备互访，以及 Windows 是否允许该开发服务通过当前可信网络；项目不会自动修改防火墙设置。
 
 ## 下载 ECDICT 并构建词表
 
@@ -127,12 +127,30 @@ pnpm run build
 pnpm preview
 ```
 
-M3 验收记录见 `QA-M3.md`；M1/M2 历史记录见 `QA.md`、`QA-M2.md`。真实 IndexedDB 测试可在开发服务运行时打开 `/tests/browser/m3.html` 和 `/tests/browser/index.html`，分别使用独立数据库 `one-word-m3-browser-tests`、`one-word-m2-browser-tests`，不修改正式数据库。测试中通过参数传入时间检查跨日，不修改系统时钟。
+M4 验收记录见 `QA-M4.md`；M1–M3 历史记录见 `QA.md`、`QA-M2.md`、`QA-M3.md`。真实 IndexedDB 测试可在开发服务运行时打开 `/one-word/tests/browser/m3.html` 和 `/one-word/tests/browser/index.html`，分别使用独立数据库 `one-word-m3-browser-tests`、`one-word-m2-browser-tests`，不修改正式数据库。测试中通过参数传入时间检查跨日，不修改系统时钟。
 
-只新增 SPEC 列出的 Dexie 4.4.7 与 ts-fsrs 5.4.2，没有增加状态管理、UI 或测试辅助依赖。React Vite 插件固定为 6.1.2，测试间接依赖 tinybench 固定为 6.2.2，以满足本机 pnpm 的发布时间检查，未降低该检查策略。
+使用 SPEC 列出的 Dexie 4.4.7、ts-fsrs 5.4.2 与 vite-plugin-pwa 2.0.0，没有增加状态管理、UI 或图表依赖。React Vite 插件固定为 6.1.2，测试间接依赖 tinybench 固定为 6.2.2，以满足本机 pnpm 的发布时间检查，未降低该检查策略。
 
 ## 部署与 iPhone 主屏幕
 
-本次完成 M3，PWA 和部署留待 M4。`pnpm run build` 会产生静态 `dist/`，`pnpm preview` 可在本地检查它。
+生产路径固定为 `/one-word/`。运行 `pnpm build`、`pnpm preview` 后打开 `http://localhost:4173/one-word/`（端口被占用时以终端为准）。开发服务不注册 SW，PWA 用生产 preview 或 HTTPS 站点验证。
 
-M4 再配置 GitHub Pages、仓库 base 路径、GitHub Actions、manifest 和离线缓存。未来部署后用 iPhone Safari 打开站点，通过分享菜单选择“添加到主屏幕”。当前不承诺离线打开或安装体验，真实 iPhone Safari 的发音和安全区仍需设备验收。
+仓库远程为 `https://github.com/wuhaoxuan557-sudo/one-word.git`，主分支为 main；本机仅配置仓库作者。本轮只提交，不推送。自行执行：
+
+```powershell
+git push -u origin main
+```
+
+在 GitHub 仓库 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。若首次推送时尚未启用 Pages，在 Actions 中打开 **Deploy GitHub Pages**，选择 **Re-run all jobs** 或 **Run workflow → main**。若仓库禁用了 Actions，先在 **Settings → Actions → General** 允许该 workflow 使用的 actions。部署使用 github-pages environment，仅允许 main 部署；若自行加了审批规则，需要在 Actions 批准部署。
+
+Workflow 从 package.json 的 packageManager 读取 pnpm 版本，依次执行 frozen install、测试和构建，再用官方 Pages artifact/deploy actions 发布。成功后打开 `https://wuhaoxuan557-sudo.github.io/one-word/`。后续 push main 自动重复此流程。配置依据：[GitHub Pages 官方文档](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
+
+iPhone 上用 Safari 打开上面的 HTTPS 地址，等待首页加载，选择要学习的词表并保存；点分享按钮 →“添加到主屏幕”→ 确认名称“一词”→“添加”。然后从主屏幕图标打开。支持的 iOS 版本中可保留“作为 Web App 打开”选项。安装后的安全区使用 black-translucent 状态栏及 viewport-fit=cover；真实 iPhone 的系统栏仍需实机检查。
+
+应用外壳、字体、图标和 index.json 预缓存；选中词表在后台预取并用 CacheFirst 保存，之后可离线学习。完整词表不一次性预缓存 8 份。第一次使用或换词表时先保持联网，等待加载成功；离线选择未缓存词表会显示明确提示，原选择和学习数据保持完整。词表缓存名跟随构建时的数据指纹，数据更新后按新版本重新缓存。远程系统语音离线时可能不能播放。
+
+有新版本时只在首页显示“有新版本 · 点击更新”，认词、反馈、详情中不会出现更新按钮或自动刷新。学完回首页，点击该行才激活新版本并重载；其他正在学习的标签页也不会被强制刷新。重新打开或恢复页面联网时会检查更新，保持页面打开时每小时再检查一次。浅/深色 manifest 共用应用 ID，主题色与背景色读取对应 tokens。
+
+学习记录保存在设备浏览器中，PWA 缓存不能代替备份。建议每周到设置页导出 JSON，并保留到站点以外的位置；清理浏览器、换设备或重新安装前先导出。超过 14 天未备份时首页会提醒。开发地址、preview 地址和 Pages 是不同的源，迁移旧进度需从旧地址导出，再到新地址导入。
+
+图标已生成并提交，日常构建无需图形工具或额外依赖。若需重做，启动开发服务并打开 `/one-word/scripts/icons.html`，使用现有 WOFF2 字体和浏览器 canvas 下载三张 PNG 放入 public/icons。验收见 `QA-M4.md`。

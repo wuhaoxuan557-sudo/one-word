@@ -15,3 +15,9 @@ it('shows the backup reminder only after fourteen days and clears it after expor
   expect(render(now + 14 * 86_400_000 + 1)).not.toContain('距上次备份');
   expect(render(now + 29 * 86_400_000)).toContain('距上次备份已');
 });
+
+it('renders an update prompt as a deliberate home-page action', () => {
+  const html = renderToStaticMarkup(createElement(Home, { snapshot: freshSnapshot(), words, now, busy: false,
+    onStart: () => {}, onWordlists: () => {}, onWordbook: () => {}, onExport: () => {}, updateAvailable: true, onUpdate: () => {} }));
+  expect(html).toContain('有新版本 · 点击更新');
+});
